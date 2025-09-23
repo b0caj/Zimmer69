@@ -47,7 +47,16 @@
       "correctAnswers": 0,
       "incorrectAnswers": 0,
       "totalQuestionsAnswered": 0
+    },
+    {
+      "name": "Tromme",
+      "password": "aishd39",
+      "totalScore": 0,
+      "correctAnswers": 0,
+      "incorrectAnswers": 0,
+      "totalQuestionsAnswered": 0
     }
+
   ],
   "host": {
     "name": "host",
