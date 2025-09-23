@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quiz Buzzer</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="custom-form.css">
     
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 </head>
@@ -38,7 +39,9 @@
 
                 <div id="manual-score-controls" style="display: none;">
                     <h3>Manuelle Punkteänderung</h3>
-                    <select id="player-select"></select>
+                    <div class="custom-select-container">
+                        <select id="player-select"></select>
+                    </div>
                     <input type="number" id="score-input" placeholder="Neuer Punktestand">
                     <button id="update-score-button">Aktualisieren</button>
                 </div>
@@ -92,7 +95,10 @@
             <div id="host-panel" class="column" style="display: none;">
                 <div id="quiz-upload-container">
                     <h3>Neues Quiz hochladen</h3>
-                    <input type="file" id="quiz-upload" accept=".json">
+                    <div class="file-upload-wrapper">
+                        <input type="file" id="quiz-upload" accept=".json">
+                        <label for="quiz-upload" class="custom-file-button">Datei auswählen</label>
+                    </div>
                     <button id="upload-button">Quiz laden</button>
                     <p id="upload-status"></p>
                 </div>
@@ -169,11 +175,21 @@
         const buzzSound = document.getElementById('buzzSound');
         const correctSound = document.getElementById('correctSound');
         const wrongSound = document.getElementById('wrongSound');
+
+        const customFileButton = document.querySelector('.custom-file-button');
         
         let playerName = '';
         let isHost = false;
         let currentQuestionIndex = 0;
         let questions = [];
+
+        quizUploadInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                customFileButton.textContent = this.files[0].name;
+            } else {
+                customFileButton.textContent = 'Datei auswählen';
+            }
+        });
         
         function sendWsMessage(message) {
             if (ws.readyState === WebSocket.OPEN) {

@@ -1,0 +1,70 @@
+/* Custom Styling for Select (Dropdown) */
+.custom-select-container {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+.custom-select-container select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    width: 100%;
+    padding: 10px 15px;
+    font-size: 16px;
+    background-color: #2c2c2c;
+    color: #e0e0e0;
+    border: 1px solid #555;
+    border-radius: 8px;
+    cursor: pointer;
+    outline: none;
+}
+
+.custom-select-container::after {
+    content: '▼'; /* Custom dropdown arrow */
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    transform: translateY(-50%);
+    color: #bb86fc;
+    pointer-events: none;
+}
+
+/* Custom Styling for File Input */
+.file-upload-wrapper {
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+.file-upload-wrapper input[type="file"] {
+    font-size: 100px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.custom-file-button {
+    display: block;
+    width: 100%;
+    padding: 10px 15px;
+    text-align: center;
+    background-color: #6200ee;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+}
+
+.custom-file-button:hover {
+    background-color: #bb86fc;
+    transform: translateY(-2px);
+}
