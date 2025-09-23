@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,10 +15,10 @@
         <form id="login-form">
             <div id="name-input-container">
                 <label for="name-input">Nutzername:</label>
-                <input type="text" id="name-input" placeholder="Enter your name">
+                <input type="text" id="name-input" placeholder="Gib deinen Namen ein">
                 
                 <label for="password-input">Passwort:</label>
-                <input type="password" id="password-input" placeholder="Enter your password">
+                <input type="password" id="password-input" placeholder="Gib dein Passwort ein">
 
                 <button id="login-button" type="submit">Login</button>
             </div>
@@ -37,14 +37,14 @@
                 </a>
 
                 <div id="manual-score-controls" style="display: none;">
-                    <h3>Manual Score Change</h3>
+                    <h3>Manuelle Punkteänderung</h3>
                     <select id="player-select"></select>
-                    <input type="number" id="score-input" placeholder="New Score">
-                    <button id="update-score-button">Update</button>
+                    <input type="number" id="score-input" placeholder="Neuer Punktestand">
+                    <button id="update-score-button">Aktualisieren</button>
                 </div>
                 
                 <div id="host-reset-buttons" style="display: none;">
-                    <button id="reset-round-button">Punkte zurücksetzen</button>
+                    <button id="reset-round-button">Runden-Punkte zurücksetzen</button>
                     <button id="reset-all-stats-button">Alle Statistiken zurücksetzen</button>
                 </div>
             </div>
@@ -57,13 +57,13 @@
 
                 <div id="player-controls" style="display: none;">
                     <div id="buzzer-container">
-                        <button id="buzzer-button">Buzz!</button>
+                        <button id="buzzer-button">Buzzen!</button>
                     </div>
                     
                     <div id="answer-container">
-                        <p>Dein Guess:</p>
-                        <input type="text" id="answer-input" placeholder="Enter your answer">
-                        <button id="submit-answer-button">Guess Bestätigen</button>
+                        <p>Deine Antwort:</p>
+                        <input type="text" id="answer-input" placeholder="Gib deine Antwort ein">
+                        <button id="submit-answer-button">Antwort bestätigen</button>
                     </div>
                 </div>
                 
@@ -79,9 +79,9 @@
 
                 <div id="host-controls" style="display: none;">
                     <div id="score-controls">
-                        <p>Zuerst Gebuzzt: <span id="buzzed-in-name"></span></p>
-                        <button id="correct-button" data-points="5">Correct (+5)</button>
-                        <button id="incorrect-button" data-points="-5">Incorrect (-5)</button>
+                        <p>Zuerst gebuzzt: <span id="buzzed-in-name"></span></p>
+                        <button id="correct-button" data-points="5">Korrekt (+5)</button>
+                        <button id="incorrect-button" data-points="-5">Falsch (-5)</button>
                         <button id="pass-button">Pass</button>
                     </div>
                     <button id="toggle-buzzer-button">Buzzer öffnen</button>
@@ -91,9 +91,9 @@
 
             <div id="host-panel" class="column" style="display: none;">
                 <div id="quiz-upload-container">
-                    <h3>Upload New Quiz</h3>
+                    <h3>Neues Quiz hochladen</h3>
                     <input type="file" id="quiz-upload" accept=".json">
-                    <button id="upload-button">Load Quiz</button>
+                    <button id="upload-button">Quiz laden</button>
                     <p id="upload-status"></p>
                 </div>
 
@@ -179,7 +179,7 @@
             if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify(message));
             } else {
-                console.error("WebSocket is not open. Message not sent:", message);
+                console.error("WebSocket ist nicht offen. Nachricht wurde nicht gesendet:", message);
             }
         }
 
@@ -243,7 +243,7 @@
                 hostPanel.style.display = 'none';
                 questionInfo.style.display = 'block';
                 questionPanel.style.display = 'none';
-                statusMessage.textContent = `Hello, ${playerName}! Waiting for the buzzer to open...`;
+                statusMessage.textContent = `Hallo, ${playerName}! Warte, bis der Buzzer geöffnet wird...`;
             }
         }
         
@@ -277,15 +277,15 @@
                             type: 'loadQuiz',
                             quiz: quizData
                         });
-                        uploadStatus.textContent = 'Quiz uploaded successfully!';
+                        uploadStatus.textContent = 'Quiz erfolgreich hochgeladen!';
                     } catch (e) {
-                        uploadStatus.textContent = 'Error: Invalid JSON file.';
-                        console.error('Error parsing JSON:', e);
+                        uploadStatus.textContent = 'Fehler: Ungültige JSON-Datei.';
+                        console.error('Fehler beim Parsen von JSON:', e);
                     }
                 };
                 reader.readAsText(file);
             } else {
-                uploadStatus.textContent = 'Please select a file to upload.';
+                uploadStatus.textContent = 'Bitte wähle eine Datei zum Hochladen aus.';
             }
         });
 
@@ -320,7 +320,7 @@
                     password: password
                 });
             } else {
-                alert('Please enter your username and password.');
+                alert('Bitte gib deinen Nutzernamen und dein Passwort ein.');
             }
         });
         
@@ -370,7 +370,7 @@
 
         resetRoundButton.addEventListener('click', () => {
             if (isHost) {
-                if(confirm('Are you sure you want to reset the points for this round for all players? This will not affect the total points in the stats.')) {
+                if(confirm('Bist du sicher, dass du die Punkte für diese Runde für alle Spieler zurücksetzen möchtest? Dies hat keinen Einfluss auf die Gesamtpunktzahl in den Statistiken.')) {
                     sendWsMessage({
                         type: 'resetRoundPoints'
                     });
@@ -380,7 +380,7 @@
 
         resetAllStatsButton.addEventListener('click', () => {
             if (isHost) {
-                if(confirm('Are you sure you want to reset ALL player statistics? This action cannot be undone.')) {
+                if(confirm('Bist du sicher, dass du ALLE Spielerstatistiken zurücksetzen möchtest? Diese Aktion kann nicht rückgängig gemacht werden.')) {
                     sendWsMessage({
                         type: 'resetAllStats'
                     });
@@ -400,7 +400,7 @@
                 });
                 scoreInput.value = ''; 
             } else {
-                alert('Please select a player and enter a valid score.');
+                alert('Bitte wähle einen Spieler und gib einen gültigen Punktestand ein.');
             }
         });
 
@@ -413,7 +413,7 @@
                     answer: submittedAnswer
                 });
                 answerInput.value = '';
-                statusMessage.textContent = 'Answer submitted!';
+                statusMessage.textContent = 'Antwort bestätigt!';
             }
         });
 
@@ -425,7 +425,7 @@
                 });
                 buzzerButton.disabled = true;
             } else {
-                alert('Please login first!');
+                alert('Bitte melde dich zuerst an!');
             }
         });
 
@@ -454,7 +454,7 @@
 
                     displayMainContent(data.name, data.isHost, data.questions);
                 } else {
-                    alert('Authentication failed. Please check your username and password.');
+                    alert('Authentifizierung fehlgeschlagen. Bitte überprüfe deinen Nutzernamen und dein Passwort.');
                 }
             }
 
@@ -462,7 +462,7 @@
                 currentQuestionIndex = data.questionIndex;
                 questions = data.questions;
                 if (!isHost) { 
-                    questionDisplay.textContent = `Question ${currentQuestionIndex + 1}`;
+                    questionDisplay.textContent = `Frage ${currentQuestionIndex + 1}`;
                 }
             }
             
@@ -473,11 +473,11 @@
                     questionNumberSpan.textContent = currentQuestionIndex + 1;
                     totalQuestionsSpan.textContent = questions.length;
                     questionText.textContent = data.currentQuestionText;
-                    answerText.textContent = `Correct Answer: ${data.correctAnswer}`;
+                    answerText.textContent = `Korrekte Antwort: ${data.correctAnswer}`;
                 } else {
                     questionNumberSpan.textContent = 0;
                     totalQuestionsSpan.textContent = 0;
-                    questionText.textContent = "No questions loaded.";
+                    questionText.textContent = "Keine Fragen geladen.";
                     answerText.textContent = "";
                 }
                 prevButton.disabled = currentQuestionIndex === 0;
@@ -488,9 +488,9 @@
                 questions = data.questions;
                 currentQuestionIndex = 0;
                 if (questions.length === 0) {
-                    uploadStatus.textContent = 'Error: The uploaded quiz file contains no questions.';
+                    uploadStatus.textContent = 'Fehler: Die hochgeladene Quiz-Datei enthält keine Fragen.';
                 } else {
-                    uploadStatus.textContent = 'New quiz loaded successfully!';
+                    uploadStatus.textContent = 'Neues Quiz erfolgreich geladen!';
                 }
             }
 
@@ -503,13 +503,13 @@
                     scoreControls.style.display = 'none';
                 } else {
                     if (isBuzzerOpen) {
-                        statusMessage.textContent = 'Buzzer is open! Buzz in or submit a guess.';
+                        statusMessage.textContent = 'Buzzer ist offen! Buzze oder gib eine Antwort ein.';
                         buzzerButton.disabled = false;
                     } else if (data.buzzedIn) {
-                        statusMessage.textContent = `${data.buzzedIn} buzzed first!`;
+                        statusMessage.textContent = `${data.buzzedIn} hat zuerst gebuzzt!`;
                         buzzerButton.disabled = true;
                     } else {
-                        statusMessage.textContent = 'Buzzer is closed. Waiting for the quizmaster to start the round.';
+                        statusMessage.textContent = 'Buzzer ist geschlossen. Warte auf den Quizmaster, um die Runde zu starten.';
                         buzzerButton.disabled = true;
                     }
                 }
@@ -521,7 +521,7 @@
                     buzzedInName.textContent = data.name;
                     toggleBuzzerButton.style.display = 'none';
                 } else {
-                    statusMessage.textContent = `${data.name} buzzed first!`;
+                    statusMessage.textContent = `${data.name} hat zuerst gebuzzt!`;
                     buzzerButton.disabled = true;
                 }
                 playSound(buzzSound);
@@ -546,14 +546,14 @@
             
             if (data.type === 'correctAnswer') {
                 if (!isHost) {
-                    statusMessage.textContent = `${data.name} was correct!`;
+                    statusMessage.textContent = `${data.name} war korrekt!`;
                 }
                 playSound(correctSound);
             }
             
             if (data.type === 'wrongAnswer') {
                 if (!isHost) {
-                    statusMessage.textContent = `${data.name} was wrong.`;
+                    statusMessage.textContent = `${data.name} war falsch.`;
                 }
                 playSound(wrongSound);
             }

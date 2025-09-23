@@ -30,10 +30,10 @@ const server = http.createServer((req, res) => {
         if (error) {
             if (error.code === 'ENOENT') {
                 res.writeHead(404);
-                res.end('File not found!');
+                res.end('Datei nicht gefunden!');
             } else {
                 res.writeHead(500);
-                res.end('Server error.');
+                res.end('Server-Fehler.');
             }
         } else {
             res.writeHead(200, { 'Content-Type': contentType });
@@ -64,7 +64,7 @@ function loadPersistedData() {
         const data = fs.readFileSync(playerDataFile);
         persistedData = JSON.parse(data);
     } catch (e) {
-        console.log('No player data file found, starting fresh.');
+        console.log('Keine Spielerdaten-Datei gefunden, starte neu.');
     }
 }
 
@@ -76,9 +76,9 @@ function loadQuestions() {
     try {
         const data = fs.readFileSync(quizFile);
         questions = JSON.parse(data);
-        console.log('Quiz questions loaded from quiz.json');
+        console.log('Quiz-Fragen von quiz.json geladen.');
     } catch (e) {
-        console.log('No quiz file found, starting with empty questions array.');
+        console.log('Keine Quiz-Datei gefunden, starte mit einem leeren Fragen-Array.');
         questions = [];
     }
 }
@@ -192,7 +192,7 @@ loadPersistedData();
 loadQuestions();
 
 wss.on('connection', ws => {
-    console.log('Client connected.');
+    console.log('Client verbunden.');
     ws.isHost = false;
     ws.name = null;
     
@@ -216,7 +216,7 @@ wss.on('connection', ws => {
                     isHost: isHost,
                     questions: questions
                 }));
-                console.log(`${name} logged in successfully. Is Host: ${isHost}`);
+                console.log(`${name} erfolgreich angemeldet. Ist Quizmaster: ${isHost}`);
                 broadcastScores();
                 broadcastStats();
                 broadcastQuestionUpdate();
@@ -288,7 +288,7 @@ wss.on('connection', ws => {
                     }));
                 }
             });
-            console.log(`Buzzer manually toggled to: ${buzzerStatus}`);
+            console.log(`Buzzer manuell umgeschaltet auf: ${buzzerStatus}`);
         }
 
         if (data.type === 'buzz' && buzzerStatus === 'open') {
@@ -303,7 +303,7 @@ wss.on('connection', ws => {
                         }));
                     }
                 });
-                console.log(`${buzzedIn} buzzed in.`);
+                console.log(`${buzzedIn} hat gebuzzt.`);
             }
         }
 
@@ -332,16 +332,16 @@ wss.on('connection', ws => {
                 if (isCorrect) {
                     players[buzzedIn] += points;
                     updatePersistedScoreAndStats(buzzedIn, points, true);
-                    console.log(`Awarded ${points} points to ${buzzedIn} for a correct answer. New score: ${players[buzzedIn]}`);
+                    console.log(`Vergab ${points} Punkte an ${buzzedIn} für eine korrekte Antwort. Neuer Punktestand: ${players[buzzedIn]}`);
                 } else {
                     updatePersistedScoreAndStats(buzzedIn, 0, false);
-                    console.log(`${buzzedIn} was incorrect. Their score is unchanged.`);
+                    console.log(`${buzzedIn} lag falsch. Ihr Punktestand bleibt unverändert.`);
                     
                     for (const player in players) {
                         if (player !== buzzedIn) {
                             players[player] += 1;
                             updatePersistedScoreAndStats(player, 1, null);
-                            console.log(`Awarded 1 point to ${player}. New score: ${players[player]}`);
+                            console.log(`Vergab 1 Punkt an ${player}. Neuer Punktestand: ${players[player]}`);
                         }
                     }
                 }
@@ -372,7 +372,7 @@ wss.on('connection', ws => {
                         }));
                     }
                 });
-                console.log('Buzzer reset automatically after points were awarded.');
+                console.log('Buzzer wurde nach der Punktevergabe automatisch zurückgesetzt.');
             }
         }
         
@@ -390,7 +390,7 @@ wss.on('connection', ws => {
                     }));
                 }
             });
-            console.log('Buzzer reset by host.');
+            console.log('Buzzer vom Quizmaster zurückgesetzt.');
         }
 
         if (data.type === 'resetRoundPoints' && ws.isHost) {
@@ -398,7 +398,7 @@ wss.on('connection', ws => {
                 players[name] = 0;
             }
             broadcastScores();
-            console.log('All player scores for the round have been reset.');
+            console.log('Alle Spieler-Punkte für die Runde wurden zurückgesetzt.');
         }
 
         if (data.type === 'resetAllStats' && ws.isHost) {
@@ -411,7 +411,7 @@ wss.on('connection', ws => {
             savePersistedData();
             broadcastStats();
             broadcastScores();
-            console.log('All player statistics have been reset.');
+            console.log('Alle Spielerstatistiken wurden zurückgesetzt.');
         }
 
         if (data.type === 'manualScoreChange' && ws.isHost) {
@@ -420,7 +420,7 @@ wss.on('connection', ws => {
                 const scoreDifference = newScore - players[name];
                 players[name] = newScore;
                 updatePersistedScoreAndStats(name, scoreDifference, null);
-                console.log(`Manually updated score for ${name} to ${newScore}`);
+                console.log(`Punktestand für ${name} manuell auf ${newScore} aktualisiert.`);
                 broadcastScores();
                 broadcastStats();
             }
@@ -432,7 +432,7 @@ wss.on('connection', ws => {
     });
     
     ws.on('close', () => {
-        console.log('Client disconnected.');
+        console.log('Client getrennt.');
         broadcastScores();
     });
     
@@ -449,5 +449,5 @@ wss.on('connection', ws => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server is running at http://localhost:${PORT}`);
+    console.log(`Server läuft auf http://localhost:${PORT}`);
 });
