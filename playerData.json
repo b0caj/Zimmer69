@@ -39,10 +39,18 @@
       "correctAnswers": 0,
       "incorrectAnswers": 0,
       "totalQuestionsAnswered": 0
+    },
+    {
+      "name": "Bocaj",
+      "password": "l8itr22",
+      "totalScore": 0,
+      "correctAnswers": 0,
+      "incorrectAnswers": 0,
+      "totalQuestionsAnswered": 0
     }
   ],
   "host": {
-    "name": "Bocaj",
+    "name": "host",
     "password": "host123"
   }
 }
