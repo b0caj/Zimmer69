@@ -84,6 +84,7 @@
                         <button id="incorrect-button" data-points="-5">Incorrect (-5)</button>
                         <button id="pass-button">Pass</button>
                     </div>
+                    <button id="close-buzzer-button">Buzzer Schließen</button>
                     <button id="reset-button">Open Buzzer</button>
                 </div>
 
@@ -143,6 +144,7 @@
         const incorrectButton = document.getElementById('incorrect-button');
         const passButton = document.getElementById('pass-button');
         const resetButton = document.getElementById('reset-button');
+        const closeBuzzerButton = document.getElementById('close-buzzer-button'); // New element
         const resetRoundButton = document.getElementById('reset-round-button');
         const resetAllStatsButton = document.getElementById('reset-all-stats-button');
 
@@ -359,6 +361,14 @@
                 });
             }
         });
+        
+        closeBuzzerButton.addEventListener('click', () => {
+            if (isHost) {
+                sendWsMessage({
+                    type: 'closeBuzzer'
+                });
+            }
+        });
 
         resetButton.addEventListener('click', () => {
             if (isHost) {
@@ -500,6 +510,11 @@
                         statusMessage.textContent = 'Buzzer is open! Buzz in or submit a guess.';
                         buzzerButton.disabled = false;
                     }
+                } else if (data.status === 'closedByHost') {
+                    if (!isHost) {
+                        statusMessage.textContent = 'The buzzer is currently closed by the quizmaster.';
+                        buzzerButton.disabled = true;
+                    }
                 } else {
                     if (!isHost) {
                          statusMessage.textContent = 'Buzzer is closed. Waiting for the quizmaster to start the round.';
@@ -517,6 +532,12 @@
                     }
                 }
             }
+            
+            if (data.type === 'buzzerClosed' && !isHost) {
+                statusMessage.textContent = 'The buzzer is currently closed by the quizmaster.';
+                buzzerButton.disabled = true;
+            }
+
 
             if (data.type === 'buzzedIn') {
                 if (isHost) {

@@ -351,6 +351,21 @@ wss.on('connection', ws => {
                 console.log('Buzzer reset automatically after points were awarded.');
             }
         }
+        
+        // NEW FEATURE: Close buzzer manually
+        if (data.type === 'closeBuzzer' && ws.isHost) {
+            buzzerStatus = 'closedByHost';
+            buzzedIn = null;
+            wss.clients.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({
+                        type: 'buzzerClosed'
+                    }));
+                }
+            });
+            console.log('Buzzer manually closed by host.');
+        }
+
 
         if (data.type === 'reset' && ws.isHost) {
             buzzerStatus = 'open';
