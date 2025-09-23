@@ -448,11 +448,11 @@
         // NEW FEATURE: Spacebar to buzz
         document.addEventListener('keydown', (event) => {
             if (event.code === 'Space') {
-                event.preventDefault(); 
                 const focusedElement = document.activeElement;
-                const isInputFocused = focusedElement.tagName === 'INPUT' || focusedElement.tagName === 'TEXTAREA';
+                const isAnswerInputFocused = focusedElement === answerInput;
                 
-                if (!isHost && !buzzerButton.disabled && !isInputFocused) {
+                if (!isHost && !isAnswerInputFocused && !buzzerButton.disabled) {
+                    event.preventDefault(); 
                     buzzerButton.click();
                 }
             }
