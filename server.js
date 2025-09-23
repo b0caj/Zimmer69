@@ -337,11 +337,12 @@ wss.on('connection', ws => {
                     updatePersistedScoreAndStats(buzzedIn, 0, false);
                     console.log(`${buzzedIn} lag falsch. Ihr Punktestand bleibt unverändert.`);
                     
-                    for (const player in players) {
-                        if (player !== buzzedIn) {
-                            players[player] += 1;
-                            updatePersistedScoreAndStats(player, 1, null);
-                            console.log(`Vergab 1 Punkt an ${player}. Neuer Punktestand: ${players[player]}`);
+                    for (const playerName in players) {
+                        // Korrigierte Logik: Überprüft, ob der Spieler nicht der Host ist und nicht der gebuzzte Spieler.
+                        if (playerName !== buzzedIn && playerName !== persistedData.host.name) {
+                            players[playerName] += 1;
+                            updatePersistedScoreAndStats(playerName, 1, null);
+                            console.log(`Vergab 1 Punkt an ${playerName}. Neuer Punktestand: ${players[playerName]}`);
                         }
                     }
                 }
