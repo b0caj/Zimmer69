@@ -268,6 +268,28 @@ wss.on('connection', ws => {
                 broadcastQuestionUpdate();
             }
         }
+        
+        // New combined handler for opening/closing the buzzer
+        if (data.type === 'toggleBuzzer' && ws.isHost) {
+            if (buzzerStatus === 'open') {
+                buzzerStatus = 'closed';
+                buzzedIn = null;
+                submittedAnswers = {};
+                liveAnswers = {};
+            } else {
+                buzzerStatus = 'open';
+            }
+            wss.clients.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({
+                        type: 'buzzerStatusUpdate',
+                        status: buzzerStatus,
+                        buzzedIn: buzzedIn
+                    }));
+                }
+            });
+            console.log(`Buzzer manually toggled to: ${buzzerStatus}`);
+        }
 
         if (data.type === 'buzz' && buzzerStatus === 'open') {
             if (!buzzedIn) {
@@ -344,7 +366,9 @@ wss.on('connection', ws => {
                 wss.clients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
-                            type: 'reset'
+                            type: 'buzzerStatusUpdate',
+                            status: buzzerStatus,
+                            buzzedIn: buzzedIn
                         }));
                     }
                 });
@@ -352,21 +376,6 @@ wss.on('connection', ws => {
             }
         }
         
-        // NEW FEATURE: Close buzzer manually
-        if (data.type === 'closeBuzzer' && ws.isHost) {
-            buzzerStatus = 'closedByHost';
-            buzzedIn = null;
-            wss.clients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify({
-                        type: 'buzzerClosed'
-                    }));
-                }
-            });
-            console.log('Buzzer manually closed by host.');
-        }
-
-
         if (data.type === 'reset' && ws.isHost) {
             buzzerStatus = 'open';
             buzzedIn = null;
@@ -375,7 +384,9 @@ wss.on('connection', ws => {
             wss.clients.forEach(client => {
                 if (client.readyState === WebSocket.OPEN) {
                     client.send(JSON.stringify({
-                        type: 'reset'
+                        type: 'buzzerStatusUpdate',
+                        status: buzzerStatus,
+                        buzzedIn: buzzedIn
                     }));
                 }
             });

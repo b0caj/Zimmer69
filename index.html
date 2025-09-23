@@ -84,8 +84,7 @@
                         <button id="incorrect-button" data-points="-5">Incorrect (-5)</button>
                         <button id="pass-button">Pass</button>
                     </div>
-                    <button id="close-buzzer-button">Buzzer Schließen</button>
-                    <button id="reset-button">Open Buzzer</button>
+                    <button id="toggle-buzzer-button">Buzzer öffnen</button>
                 </div>
 
             </div>
@@ -143,8 +142,7 @@
         const correctButton = document.getElementById('correct-button');
         const incorrectButton = document.getElementById('incorrect-button');
         const passButton = document.getElementById('pass-button');
-        const resetButton = document.getElementById('reset-button');
-        const closeBuzzerButton = document.getElementById('close-buzzer-button'); // New element
+        const toggleBuzzerButton = document.getElementById('toggle-buzzer-button');
         const resetRoundButton = document.getElementById('reset-round-button');
         const resetAllStatsButton = document.getElementById('reset-all-stats-button');
 
@@ -362,18 +360,10 @@
             }
         });
         
-        closeBuzzerButton.addEventListener('click', () => {
+        toggleBuzzerButton.addEventListener('click', () => {
             if (isHost) {
                 sendWsMessage({
-                    type: 'closeBuzzer'
-                });
-            }
-        });
-
-        resetButton.addEventListener('click', () => {
-            if (isHost) {
-                sendWsMessage({
-                    type: 'reset'
+                    type: 'toggleBuzzer'
                 });
             }
         });
@@ -504,46 +494,32 @@
                 }
             }
 
-            if (data.type === 'initialStatus') {
-                if (data.status === 'open') {
-                    if (!isHost) {
+            if (data.type === 'initialStatus' || data.type === 'buzzerStatusUpdate') {
+                const isBuzzerOpen = data.status === 'open';
+                
+                if (isHost) {
+                    toggleBuzzerButton.textContent = isBuzzerOpen ? 'Buzzer schließen' : 'Buzzer öffnen';
+                    toggleBuzzerButton.style.display = 'block';
+                    scoreControls.style.display = 'none';
+                } else {
+                    if (isBuzzerOpen) {
                         statusMessage.textContent = 'Buzzer is open! Buzz in or submit a guess.';
                         buzzerButton.disabled = false;
-                    }
-                } else if (data.status === 'closedByHost') {
-                    if (!isHost) {
-                        statusMessage.textContent = 'The buzzer is currently closed by the quizmaster.';
+                    } else if (data.buzzedIn) {
+                        statusMessage.textContent = `${data.buzzedIn} buzzed first!`;
                         buzzerButton.disabled = true;
-                    }
-                } else {
-                    if (!isHost) {
-                         statusMessage.textContent = 'Buzzer is closed. Waiting for the quizmaster to start the round.';
-                    }
-
-                    if (data.buzzedIn) {
-                        if (!isHost) {
-                            statusMessage.textContent = `${data.buzzedIn} buzzed first!`;
-                            buzzerButton.disabled = true;
-                        }
                     } else {
-                        if (!isHost) {
-                            buzzerButton.disabled = true;
-                        }
+                        statusMessage.textContent = 'Buzzer is closed. Waiting for the quizmaster to start the round.';
+                        buzzerButton.disabled = true;
                     }
                 }
             }
-            
-            if (data.type === 'buzzerClosed' && !isHost) {
-                statusMessage.textContent = 'The buzzer is currently closed by the quizmaster.';
-                buzzerButton.disabled = true;
-            }
-
 
             if (data.type === 'buzzedIn') {
                 if (isHost) {
                     scoreControls.style.display = 'block';
                     buzzedInName.textContent = data.name;
-                    resetButton.style.display = 'none';
+                    toggleBuzzerButton.style.display = 'none';
                 } else {
                     statusMessage.textContent = `${data.name} buzzed first!`;
                     buzzerButton.disabled = true;
@@ -561,19 +537,6 @@
                     const li = document.createElement('li');
                     li.textContent = `${name}: ${data.liveAnswers[name]}`;
                     liveAnswersList.appendChild(li);
-                }
-            }
-
-
-            if (data.type === 'reset') {
-                if (isHost) {
-                    scoreControls.style.display = 'none';
-                    resetButton.style.display = 'block';
-                    answersList.innerHTML = '';
-                    liveAnswersList.innerHTML = '';
-                } else {
-                    statusMessage.textContent = 'Buzzer is open! Buzz in or submit a guess.';
-                    buzzerButton.disabled = false;
                 }
             }
             
