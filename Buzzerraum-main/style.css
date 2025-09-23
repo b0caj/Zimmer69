@@ -1,0 +1,280 @@
+/* General Styles for the entire site (main app and stats page) */
+body {
+    font-family: 'Roboto', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    background-color: #121212; /* Dark background */
+    color: #e0e0e0; /* Light text */
+}
+
+.container {
+    text-align: center;
+    padding: 30px;
+    background-color: #1e1e1e; /* Darker container background */
+    border-radius: 15px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5); /* Darker shadow */
+    max-width: 90vw;
+    width: 100%;
+}
+
+h1 {
+    color: #bb86fc; /* Purple heading for contrast */
+    font-weight: 700;
+}
+
+/* Form and Input Styles */
+#name-input-container {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#name-input-container label {
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+#name-input, #password-input, #score-input {
+    padding: 12px;
+    font-size: 1em;
+    border: 2px solid #555; /* Darker border */
+    background-color: #333; /* Dark input background */
+    color: #e0e0e0; /* Light input text */
+    border-radius: 8px;
+    width: 250px;
+    margin-top: 5px;
+}
+
+/* Button Styles */
+#login-button, #submit-name, #buzzer-button, #submit-answer-button, #reset-button, button {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: transform 0.2s, background-color 0.2s;
+    margin-top: 10px;
+}
+
+#login-button {
+    background-color: #6200ee; /* Purple login button */
+    color: white;
+}
+#login-button:hover {
+    background-color: #3700b3;
+}
+
+#buzzer-button {
+    font-size: 2.5em;
+    padding: 30px 60px;
+    background-color: #03dac6; /* Teal buzzer button */
+    color: #121212;
+}
+#buzzer-button:hover:not(:disabled) {
+    background-color: #018786;
+    transform: scale(1.05);
+}
+#buzzer-button:disabled {
+    background-color: #424242; /* Dark disabled color */
+    color: #a0a0a0;
+    cursor: not-allowed;
+}
+
+#submit-answer-button, #update-score-button {
+    background-color: #ffc107; /* Yellow answer button */
+    color: #121212;
+}
+#submit-answer-button:hover, #update-score-button:hover {
+    background-color: #ffb300;
+}
+
+#reset-button {
+    background-color: #cf6679; /* Red reset button */
+    color: #121212;
+}
+#reset-button:hover {
+    background-color: #b00020;
+}
+
+#score-controls button, #manual-score-controls button {
+    margin: 5px;
+}
+
+/* Main App Layout (index.html) */
+#main-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.column {
+    flex: 1;
+    padding: 20px;
+    border-radius: 10px;
+    background-color: #2c2c2c; /* Slightly lighter dark background for columns */
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+
+#scoreboard-container {
+    display: flex;
+    flex-direction: column;
+}
+
+#scoreboard h2 {
+    color: #4CAF50; /* Green color for scoreboard heading */
+}
+
+#score-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+#score-list li {
+    font-size: 1.1em;
+    padding: 8px 0;
+    border-bottom: 1px solid #424242; /* Darker border for list items */
+    display: flex;
+    justify-content: space-between;
+}
+
+#score-list li:last-child {
+    border-bottom: none;
+}
+
+#central-container {
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+#player-controls, #host-controls {
+    text-align: center;
+}
+
+#buzzer-container {
+    margin-bottom: 20px;
+}
+
+#answer-container input, #answer-container button {
+    margin: 5px;
+}
+
+#host-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+#question-panel h2 {
+    color: #bb86fc; /* Purple color for question panel heading */
+}
+
+#question-text {
+    font-size: 1.2em;
+    font-style: italic;
+    min-height: 50px;
+}
+
+#live-answers-display, #answers-display {
+    border: 1px solid #424242;
+    padding: 15px;
+    border-radius: 8px;
+    background-color: #2c2c2c;
+}
+
+#live-answers-list, #answers-list {
+    list-style-type: none;
+    padding: 0;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* Media Query for smaller screens (e.g., mobile) */
+@media (max-width: 900px) {
+    #main-content {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .column {
+        margin-bottom: 20px;
+    }
+}
+
+/* Stats Page Styles (stats.html) */
+#stats-content {
+    margin-top: 20px;
+    padding: 20px;
+    background-color: #2c2c2c; /* Consistent dark background */
+    border-radius: 10px;
+}
+
+#stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    justify-content: center;
+}
+
+.player-card {
+    background-color: #1e1e1e; /* Darker card background */
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: left;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.player-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+}
+
+.player-name {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #03dac6; /* Teal color for names */
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px dashed #424242; /* Dotted line for separation */
+}
+
+.stat-item:last-child {
+    border-bottom: none;
+}
+
+.stat-label {
+    font-weight: 500;
+    color: #bb86fc; /* Purple color for labels */
+}
+
+.stat-value {
+    font-weight: bold;
+    color: #e0e0e0;
+}
+
+/* Back button specific to stats page */
+#back-button {
+    background-color: #bb86fc;
+    color: #121212;
+    margin-top: 20px;
+}
+#back-button:hover {
+    background-color: #9c4dcc;
+}

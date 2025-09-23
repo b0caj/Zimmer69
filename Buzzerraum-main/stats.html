@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Stats</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1>Spieler-Statistiken</h1>
+        
+        <div id="stats-content">
+            <div id="stats-grid"></div>
+        </div>
+        
+        <button id="back-button">Zurück zum Spiel</button>
+    </div>
+    
+    <script>
+        const ws = new WebSocket(`wss://${window.location.host}`);
+        const statsGrid = document.getElementById('stats-grid');
+        const backButton = document.getElementById('back-button');
+
+        ws.onopen = () => {
+            // Request stats data from the server
+            ws.send(JSON.stringify({ type: 'getStats' }));
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'updateStats') {
+                statsGrid.innerHTML = '';
+                // Sort players by total score in descending order
+                const sortedPlayers = Object.entries(data.stats).sort(([, a], [, b]) => b.totalScore - a.totalScore);
+                
+                sortedPlayers.forEach(([name, stats]) => {
+                    const playerCard = document.createElement('div');
+                    playerCard.className = 'player-card';
+                    playerCard.innerHTML = `
+                        <div class="player-name">${name}</div>
+                        <div class="stat-item">
+                            <span class="stat-label">Total Score:</span>
+                            <span class="stat-value">${stats.totalScore}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Correct Answers:</span>
+                            <span class="stat-value">${stats.correctAnswers}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Incorrect Answers:</span>
+                            <span class="stat-value">${stats.incorrectAnswers}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Answer Ratio:</span>
+                            <span class="stat-value">${(stats.correctAnswers / (stats.totalQuestionsAnswered || 1) * 100).toFixed(2)}%</span>
+                        </div>
+                    `;
+                    statsGrid.appendChild(playerCard);
+                });
+            }
+        };
+
+        backButton.addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+    </script>
+</body>
+</html>

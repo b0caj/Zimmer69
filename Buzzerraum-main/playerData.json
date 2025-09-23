@@ -1,0 +1,48 @@
+{
+  "users": [
+    {
+      "name": "Jakob",
+      "password": "a2sdw23afaw",
+      "totalScore": 0,
+      "correctAnswers": 0,
+      "incorrectAnswers": 0,
+      "totalQuestionsAnswered": 0
+    },
+    {
+      "name": "Janik",
+      "password": "trwa43sdergt4r",
+      "totalScore": 0,
+      "correctAnswers": 0,
+      "incorrectAnswers": 0,
+      "totalQuestionsAnswered": 0
+    },
+    {
+      "name": "Josef",
+      "password": "u34erwe3",
+      "totalScore": 0,
+      "correctAnswers": 0,
+      "incorrectAnswers": 0,
+      "totalQuestionsAnswered": 0
+    },
+    {
+      "name": "Lex",
+      "password": "asde55sfeq",
+      "totalScore": 0,
+      "correctAnswers": 0,
+      "incorrectAnswers": 0,
+      "totalQuestionsAnswered": 0
+    },
+    {
+      "name": "Clemens",
+      "password": "6zeffzasdw8",
+      "totalScore": 0,
+      "correctAnswers": 0,
+      "incorrectAnswers": 0,
+      "totalQuestionsAnswered": 0
+    }
+  ],
+  "host": {
+    "name": "Bocaj",
+    "password": "host123"
+  }
+}

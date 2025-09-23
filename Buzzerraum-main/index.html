@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Buzzer</title>
+    <link rel="stylesheet" href="style.css">
+    
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1>Online Buzzer Raum</h1>
+        
+        <form id="login-form">
+            <div id="name-input-container">
+                <label for="name-input">Nutzername:</label>
+                <input type="text" id="name-input" placeholder="Enter your name">
+                
+                <label for="password-input">Passwort:</label>
+                <input type="password" id="password-input" placeholder="Enter your password">
+
+                <button id="login-button" type="submit">Login</button>
+            </div>
+        </form>
+        
+        <div id="main-content" style="display: none;">
+            
+            <div id="scoreboard-container" class="column">
+                <div id="scoreboard">
+                    <h2>Punkte</h2>
+                    <ul id="score-list"></ul>
+                </div>
+                
+                <a href="stats.html" class="button-link">
+                    <button id="stats-button">Alle Statistiken</button>
+                </a>
+
+                <div id="manual-score-controls" style="display: none;">
+                    <h3>Manual Score Change</h3>
+                    <select id="player-select"></select>
+                    <input type="number" id="score-input" placeholder="New Score">
+                    <button id="update-score-button">Update</button>
+                </div>
+                
+                <div id="host-reset-buttons" style="display: none;">
+                    <button id="reset-round-button">Punkte zurücksetzen</button>
+                    <button id="reset-all-stats-button">Alle Statistiken zurücksetzen</button>
+                </div>
+            </div>
+
+            <div id="central-container" class="column">
+                <p id="status-message"></p>
+                <div id="question-info">
+                    <h3 id="question-display"></h3>
+                </div>
+
+                <div id="player-controls" style="display: none;">
+                    <div id="buzzer-container">
+                        <button id="buzzer-button">Buzz!</button>
+                    </div>
+                    
+                    <div id="answer-container">
+                        <p>Dein Guess:</p>
+                        <input type="text" id="answer-input" placeholder="Enter your answer">
+                        <button id="submit-answer-button">Guess Bestätigen</button>
+                    </div>
+                </div>
+                
+                <div id="question-panel" style="display: none;">
+                    <h2>Frage <span id="question-number">1</span> von <span id="total-questions"></span></h2>
+                    <p id="question-text"></p>
+                    <p id="answer-text" style="font-weight: bold; color: green;"></p>
+                    <div class="navigation-buttons">
+                        <button id="prev-question-button">Vorherige</button>
+                        <button id="next-question-button">Nächste</button>
+                    </div>
+                </div>
+
+                <div id="host-controls" style="display: none;">
+                    <div id="score-controls">
+                        <p>Zuerst Gebuzzt: <span id="buzzed-in-name"></span></p>
+                        <button id="correct-button" data-points="5">Correct (+5)</button>
+                        <button id="incorrect-button" data-points="-5">Incorrect (-5)</button>
+                        <button id="pass-button">Pass</button>
+                    </div>
+                    <button id="reset-button">Open Buzzer</button>
+                </div>
+
+            </div>
+
+            <div id="host-panel" class="column" style="display: none;">
+                <div id="quiz-upload-container">
+                    <h3>Upload New Quiz</h3>
+                    <input type="file" id="quiz-upload" accept=".json">
+                    <button id="upload-button">Load Quiz</button>
+                    <p id="upload-status"></p>
+                </div>
+
+                <div id="live-answers-display">
+                    <h3>Live Antworten</h3>
+                    <ul id="live-answers-list"></ul>
+                </div>
+                
+                <div id="answers-display">
+                    <h3>Bestätigte Antworten</h3>
+                    <ul id="answers-list"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <audio id="buzzSound" src="sounds/buzz.mp3"></audio>
+    <audio id="correctSound" src="sounds/correct.mp3"></audio>
+    <audio id="wrongSound" src="sounds/wrong.mp3"></audio>
+    
+    <script>
+        const ws = new WebSocket(`wss://${window.location.host}`);
+        const loginForm = document.getElementById('login-form');
+        const nameInput = document.getElementById('name-input');
+        const passwordInput = document.getElementById('password-input');
+        const nameInputContainer = document.getElementById('name-input-container');
+        const mainContent = document.getElementById('main-content');
+
+        const scoreboardContainer = document.getElementById('scoreboard-container');
+        const scoreboardList = document.getElementById('score-list');
+        const manualScoreControls = document.getElementById('manual-score-controls');
+        const playerSelect = document.getElementById('player-select');
+        const scoreInput = document.getElementById('score-input');
+        const updateScoreButton = document.getElementById('update-score-button');
+        const hostResetButtons = document.getElementById('host-reset-buttons');
+
+        const centralContainer = document.getElementById('central-container');
+        const statusMessage = document.getElementById('status-message');
+        const playerControls = document.getElementById('player-controls');
+        const buzzerButton = document.getElementById('buzzer-button');
+        const answerInput = document.getElementById('answer-input');
+        const submitAnswerButton = document.getElementById('submit-answer-button');
+        const hostControls = document.getElementById('host-controls');
+        const scoreControls = document.getElementById('score-controls');
+        const buzzedInName = document.getElementById('buzzed-in-name');
+        const correctButton = document.getElementById('correct-button');
+        const incorrectButton = document.getElementById('incorrect-button');
+        const passButton = document.getElementById('pass-button');
+        const resetButton = document.getElementById('reset-button');
+        const resetRoundButton = document.getElementById('reset-round-button');
+        const resetAllStatsButton = document.getElementById('reset-all-stats-button');
+
+        const hostPanel = document.getElementById('host-panel');
+        const questionPanel = document.getElementById('question-panel');
+        const questionNumberSpan = document.getElementById('question-number');
+        const totalQuestionsSpan = document.getElementById('total-questions');
+        const questionText = document.getElementById('question-text');
+        const answerText = document.getElementById('answer-text');
+        const prevButton = document.getElementById('prev-question-button');
+        const nextButton = document.getElementById('next-question-button');
+        const liveAnswersDisplay = document.getElementById('live-answers-display');
+        const liveAnswersList = document.getElementById('live-answers-list');
+        const answersDisplay = document.getElementById('answers-display');
+        const answersList = document.getElementById('answers-list');
+
+        const questionDisplay = document.getElementById('question-display');
+        const questionInfo = document.getElementById('question-info');
+
+        const quizUploadInput = document.getElementById('quiz-upload');
+        const uploadButton = document.getElementById('upload-button');
+        const uploadStatus = document.getElementById('upload-status');
+
+        const buzzSound = document.getElementById('buzzSound');
+        const correctSound = document.getElementById('correctSound');
+        const wrongSound = document.getElementById('wrongSound');
+        
+        let playerName = '';
+        let isHost = false;
+        let currentQuestionIndex = 0;
+        let questions = [];
+        
+        function sendWsMessage(message) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(message));
+            } else {
+                console.error("WebSocket is not open. Message not sent:", message);
+            }
+        }
+
+        function playSound(sound) {
+            sound.currentTime = 0;
+            sound.play();
+        }
+
+        function renderScores(scores, activePlayers) {
+            const activePlayerScores = {};
+            activePlayers.forEach(name => {
+                if (scores[name] !== undefined) {
+                    activePlayerScores[name] = scores[name];
+                }
+            });
+
+            const sortedPlayers = Object.keys(activePlayerScores).sort((a, b) => activePlayerScores[b] - activePlayerScores[a]);
+            scoreboardList.innerHTML = '';
+            playerSelect.innerHTML = ''; 
+            sortedPlayers.forEach(name => {
+                const li = document.createElement('li');
+                li.textContent = `${name}: ${activePlayerScores[name]}`;
+                scoreboardList.appendChild(li);
+                
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                playerSelect.appendChild(option);
+            });
+        }
+        
+        function renderSubmittedAnswers(submittedAnswers) {
+            answersList.innerHTML = '';
+            for (const name in submittedAnswers) {
+                const li = document.createElement('li');
+                li.textContent = `${name}: ${submittedAnswers[name]}`;
+                answersList.appendChild(li);
+            }
+        }
+        
+        function displayMainContent(name, isHostStatus, loadedQuestions) {
+            playerName = name;
+            isHost = isHostStatus;
+            questions = loadedQuestions; 
+            nameInputContainer.style.display = 'none';
+            loginForm.style.display = 'none';
+            mainContent.style.display = 'flex';
+            if (isHost) {
+                playerControls.style.display = 'none';
+                hostControls.style.display = 'block';
+                manualScoreControls.style.display = 'block';
+                hostResetButtons.style.display = 'block';
+                hostPanel.style.display = 'block';
+                questionInfo.style.display = 'none';
+                questionPanel.style.display = 'block';
+            } else {
+                playerControls.style.display = 'block';
+                hostControls.style.display = 'none';
+                manualScoreControls.style.display = 'none';
+                hostResetButtons.style.display = 'none';
+                hostPanel.style.display = 'none';
+                questionInfo.style.display = 'block';
+                questionPanel.style.display = 'none';
+                statusMessage.textContent = `Hello, ${playerName}! Waiting for the buzzer to open...`;
+            }
+        }
+        
+        function checkSessionAndLogin() {
+            const storedName = sessionStorage.getItem('playerName');
+            const storedPassword = sessionStorage.getItem('playerPassword');
+            if (storedName && storedPassword) {
+                sendWsMessage({
+                    type: 'auth',
+                    name: storedName,
+                    password: storedPassword 
+                });
+            } else {
+                loginForm.style.display = 'block';
+                mainContent.style.display = 'none';
+            }
+        }
+
+        ws.onopen = () => {
+             checkSessionAndLogin();
+        }
+
+        uploadButton.addEventListener('click', () => {
+            const file = quizUploadInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    try {
+                        const quizData = JSON.parse(event.target.result);
+                        sendWsMessage({
+                            type: 'loadQuiz',
+                            quiz: quizData
+                        });
+                        uploadStatus.textContent = 'Quiz uploaded successfully!';
+                    } catch (e) {
+                        uploadStatus.textContent = 'Error: Invalid JSON file.';
+                        console.error('Error parsing JSON:', e);
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                uploadStatus.textContent = 'Please select a file to upload.';
+            }
+        });
+
+        nextButton.addEventListener('click', () => {
+            if (currentQuestionIndex < questions.length - 1) {
+                if (isHost) {
+                    sendWsMessage({
+                        type: 'nextQuestion'
+                    });
+                }
+            }
+        });
+        
+        prevButton.addEventListener('click', () => {
+            if (currentQuestionIndex > 0) {
+                if (isHost) {
+                    sendWsMessage({
+                        type: 'prevQuestion'
+                    });
+                }
+            }
+        });
+
+        loginForm.addEventListener('submit', (event) => {
+            event.preventDefault(); 
+            const name = nameInput.value.trim();
+            const password = passwordInput.value.trim();
+            if (name && password) {
+                sendWsMessage({
+                    type: 'auth',
+                    name: name,
+                    password: password
+                });
+            } else {
+                alert('Please enter your username and password.');
+            }
+        });
+        
+        answerInput.addEventListener('keyup', () => {
+            if (playerName) {
+                sendWsMessage({
+                    type: 'liveUpdate',
+                    name: playerName,
+                    text: answerInput.value
+                });
+            }
+        });
+
+        correctButton.addEventListener('click', () => {
+            if (isHost) {
+                sendWsMessage({
+                    type: 'updatePoints',
+                    points: 5
+                });
+            }
+        });
+
+        incorrectButton.addEventListener('click', () => {
+            if (isHost) {
+                sendWsMessage({
+                    type: 'updatePoints',
+                    points: -5
+                });
+            }
+        });
+
+        passButton.addEventListener('click', () => {
+            if (isHost) {
+                sendWsMessage({
+                    type: 'reset'
+                });
+            }
+        });
+
+        resetButton.addEventListener('click', () => {
+            if (isHost) {
+                sendWsMessage({
+                    type: 'reset'
+                });
+            }
+        });
+
+        resetRoundButton.addEventListener('click', () => {
+            if (isHost) {
+                if(confirm('Are you sure you want to reset the points for this round for all players? This will not affect the total points in the stats.')) {
+                    sendWsMessage({
+                        type: 'resetRoundPoints'
+                    });
+                }
+            }
+        });
+
+        resetAllStatsButton.addEventListener('click', () => {
+            if (isHost) {
+                if(confirm('Are you sure you want to reset ALL player statistics? This action cannot be undone.')) {
+                    sendWsMessage({
+                        type: 'resetAllStats'
+                    });
+                }
+            }
+        });
+        
+        updateScoreButton.addEventListener('click', () => {
+            const selectedPlayer = playerSelect.value;
+            const newScore = parseInt(scoreInput.value, 10);
+            
+            if (selectedPlayer && !isNaN(newScore)) {
+                sendWsMessage({
+                    type: 'manualScoreChange',
+                    name: selectedPlayer,
+                    newScore: newScore
+                });
+                scoreInput.value = ''; 
+            } else {
+                alert('Please select a player and enter a valid score.');
+            }
+        });
+
+        submitAnswerButton.addEventListener('click', () => {
+            const submittedAnswer = answerInput.value.trim();
+            if (submittedAnswer) {
+                sendWsMessage({
+                    type: 'submitAnswer',
+                    name: playerName,
+                    answer: submittedAnswer
+                });
+                answerInput.value = '';
+                statusMessage.textContent = 'Answer submitted!';
+            }
+        });
+
+        buzzerButton.addEventListener('click', () => {
+            if (playerName) {
+                sendWsMessage({
+                    type: 'buzz',
+                    name: playerName
+                });
+                buzzerButton.disabled = true;
+            } else {
+                alert('Please login first!');
+            }
+        });
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'authResponse') {
+                if (data.success) {
+                    sessionStorage.setItem('playerName', data.name);
+                    sessionStorage.setItem('isHost', data.isHost);
+                    sessionStorage.setItem('playerPassword', passwordInput.value.trim());
+
+                    displayMainContent(data.name, data.isHost, data.questions);
+                } else {
+                    alert('Authentication failed. Please check your username and password.');
+                }
+            }
+
+            if (data.type === 'questionUpdate') {
+                currentQuestionIndex = data.questionIndex;
+                questions = data.questions;
+                if (!isHost) { 
+                    questionDisplay.textContent = `Question ${currentQuestionIndex + 1}`;
+                }
+            }
+            
+            if (data.type === 'hostQuestionUpdate') {
+                currentQuestionIndex = data.questionIndex;
+                questions = data.questions;
+                if (questions.length > 0) {
+                    questionNumberSpan.textContent = currentQuestionIndex + 1;
+                    totalQuestionsSpan.textContent = questions.length;
+                    questionText.textContent = data.currentQuestionText;
+                    answerText.textContent = `Correct Answer: ${data.correctAnswer}`;
+                } else {
+                    questionNumberSpan.textContent = 0;
+                    totalQuestionsSpan.textContent = 0;
+                    questionText.textContent = "No questions loaded.";
+                    answerText.textContent = "";
+                }
+                prevButton.disabled = currentQuestionIndex === 0;
+                nextButton.disabled = currentQuestionIndex === questions.length - 1;
+            }
+            
+            if (data.type === 'quizLoaded') {
+                questions = data.questions;
+                currentQuestionIndex = 0;
+                if (questions.length === 0) {
+                    uploadStatus.textContent = 'Error: The uploaded quiz file contains no questions.';
+                } else {
+                    uploadStatus.textContent = 'New quiz loaded successfully!';
+                }
+            }
+
+            if (data.type === 'initialStatus') {
+                if (data.status === 'open') {
+                    if (!isHost) {
+                        statusMessage.textContent = 'Buzzer is open! Buzz in or submit a guess.';
+                        buzzerButton.disabled = false;
+                    }
+                } else {
+                    if (!isHost) {
+                         statusMessage.textContent = 'Buzzer is closed. Waiting for the quizmaster to start the round.';
+                    }
+
+                    if (data.buzzedIn) {
+                        if (!isHost) {
+                            statusMessage.textContent = `${data.buzzedIn} buzzed first!`;
+                            buzzerButton.disabled = true;
+                        }
+                    } else {
+                        if (!isHost) {
+                            buzzerButton.disabled = true;
+                        }
+                    }
+                }
+            }
+
+            if (data.type === 'buzzedIn') {
+                if (isHost) {
+                    scoreControls.style.display = 'block';
+                    buzzedInName.textContent = data.name;
+                    resetButton.style.display = 'none';
+                } else {
+                    statusMessage.textContent = `${data.name} buzzed first!`;
+                    buzzerButton.disabled = true;
+                }
+                playSound(buzzSound);
+            }
+            
+            if (data.type === 'submittedAnswers' && isHost) {
+                renderSubmittedAnswers(data.submittedAnswers);
+            }
+
+            if (data.type === 'liveAnswers' && isHost) {
+                liveAnswersList.innerHTML = '';
+                for (const name in data.liveAnswers) {
+                    const li = document.createElement('li');
+                    li.textContent = `${name}: ${data.liveAnswers[name]}`;
+                    liveAnswersList.appendChild(li);
+                }
+            }
+
+
+            if (data.type === 'reset') {
+                if (isHost) {
+                    scoreControls.style.display = 'none';
+                    resetButton.style.display = 'block';
+                    answersList.innerHTML = '';
+                    liveAnswersList.innerHTML = '';
+                } else {
+                    statusMessage.textContent = 'Buzzer is open! Buzz in or submit a guess.';
+                    buzzerButton.disabled = false;
+                }
+            }
+            
+            if (data.type === 'updateScores') {
+                renderScores(data.scores, data.activePlayers);
+            }
+            
+            if (data.type === 'correctAnswer') {
+                if (!isHost) {
+                    statusMessage.textContent = `${data.name} was correct!`;
+                }
+                playSound(correctSound);
+            }
+            
+            if (data.type === 'wrongAnswer') {
+                if (!isHost) {
+                    statusMessage.textContent = `${data.name} was wrong.`;
+                }
+                playSound(wrongSound);
+            }
+        };
+    </script>
+</body>
+</html>
