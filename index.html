@@ -429,6 +429,20 @@
             }
         });
 
+        // NEW FEATURE: Spacebar to buzz
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Space') {
+                event.preventDefault(); 
+                const focusedElement = document.activeElement;
+                const isInputFocused = focusedElement.tagName === 'INPUT' || focusedElement.tagName === 'TEXTAREA';
+                
+                if (!isHost && !buzzerButton.disabled && !isInputFocused) {
+                    buzzerButton.click();
+                }
+            }
+        });
+
+
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             
