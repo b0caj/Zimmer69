@@ -27,106 +27,90 @@
             <div id="score-controls" class="control-grid">
                 <button id="correct-button" data-points="10">Korrekt (+10)</button>
                 <button id="incorrect-button" data-points="-5">Falsch (-5)</button>
-                <button id="pass-button">Passen</button>
             </div>
-        </div>
-
-        <div id="stats-container">
-            <h2>Live-Statistiken</h2>
-            <div id="stats-grid"></div>
-        </div>
-
-        <div id="answers-container">
-            <h2>Live-Antworten</h2>
-            <ul id="live-answers-list"></ul>
+            <button id="pass-button">Passen</button>
         </div>
         
+        <a href="stats.html" class="button-link">
+            <button id="stats-button">Statistiken ansehen</button>
+        </a>
         <button id="reset-stats-button">Alle Statistiken zurücksetzen</button>
-    </div>
-
-    <script>
-        const ws = new WebSocket(`wss://${window.location.host}`);
         
-        const statusMessage = document.getElementById('status-message');
+        <h3>Antworten</h3>
+        <ul id="answers-list"></ul>
+    </div>
+    
+    <script>
+        const resetBuzzerButton = document.getElementById('reset-buzzer-button');
         const buzzedInName = document.getElementById('buzzed-in-name');
+        const statusMessage = document.getElementById('status-message');
         const playerBuzzInfo = document.getElementById('player-buzz-info');
-        const scoreControls = document.getElementById('score-controls');
         const correctButton = document.getElementById('correct-button');
         const incorrectButton = document.getElementById('incorrect-button');
         const passButton = document.getElementById('pass-button');
-        const resetBuzzerButton = document.getElementById('reset-buzzer-button');
         const nextQuestionButton = document.getElementById('next-question-button');
         const prevQuestionButton = document.getElementById('prev-question-button');
         const currentQuestionText = document.getElementById('current-question');
-        const statsGrid = document.getElementById('stats-grid');
-        const liveAnswersList = document.getElementById('live-answers-list');
+        const answersList = document.getElementById('answers-list');
         const resetStatsButton = document.getElementById('reset-stats-button');
+
+        const ws = new WebSocket(`wss://${window.location.host}`);
+
+        // Prüfe auf den Sitzungsschlüssel, bevor eine Nachricht gesendet wird
+        ws.onopen = () => {
+            const hostSessionId = localStorage.getItem('hostSessionId');
+            if (hostSessionId) {
+                // Sende den Sitzungsschlüssel an den Server, um den Host-Status zu überprüfen
+                ws.send(JSON.stringify({
+                    type: 'hostSessionCheck',
+                    hostSessionId: hostSessionId
+                }));
+            } else {
+                // Wenn kein Schlüssel vorhanden ist, leite zurück zum Login
+                window.location.href = '/';
+            }
+        };
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
+            if (data.type === 'redirect' && data.location === '/') {
+                // Leite um, wenn die Sitzung ungültig ist
+                window.location.href = '/';
+            }
+            
             if (data.type === 'updateStatus') {
                 if (data.status === 'open') {
-                    statusMessage.textContent = 'Buzzer ist offen!';
+                    statusMessage.textContent = 'Buzzer ist offen.';
                     playerBuzzInfo.style.display = 'none';
-                    resetBuzzerButton.style.display = 'block';
+                    answersList.innerHTML = '';
                 } else if (data.buzzedIn) {
-                    statusMessage.textContent = 'Buzzer ist geschlossen.';
+                    statusMessage.textContent = 'Ein Spieler hat gebuzzt!';
                     playerBuzzInfo.style.display = 'block';
                     buzzedInName.textContent = data.buzzedIn;
-                    resetBuzzerButton.style.display = 'none';
                 } else {
                     statusMessage.textContent = 'Buzzer ist geschlossen.';
                     playerBuzzInfo.style.display = 'none';
-                    resetBuzzerButton.style.display = 'block';
+                    answersList.innerHTML = '';
                 }
             }
             
             if (data.type === 'updateQuestion') {
                 currentQuestionText.textContent = data.question;
             }
-
-            if (data.type === 'updateStats') {
-                statsGrid.innerHTML = '';
-                const sortedPlayers = Object.entries(data.stats)
-                    .sort(([, a], [, b]) => b.totalScore - a.totalScore);
-
-                sortedPlayers.forEach(([name, stats]) => {
-                    const playerCard = document.createElement('div');
-                    playerCard.className = 'player-card';
-                    playerCard.innerHTML = `
-                        <div class="player-name">${name}</div>
-                        <div class="stat-item">
-                            <span class="stat-label">Gesamtpunkte:</span>
-                            <span class="stat-value">${stats.totalScore}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Korrekte Antworten:</span>
-                            <span class="stat-value">${stats.correctAnswers}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Falsche Antworten:</span>
-                            <span class="stat-value">${stats.incorrectAnswers}</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Antwortquote:</span>
-                            <span class="stat-value">${(stats.totalQuestionsAnswered > 0) ? (stats.correctAnswers / stats.totalQuestionsAnswered * 100).toFixed(2) : 0}%</span>
-                        </div>
-                    `;
-                    statsGrid.appendChild(playerCard);
-                });
-            }
             
-            if (data.type === 'liveAnswers') {
-                liveAnswersList.innerHTML = '';
-                for (const name in data.liveAnswers) {
-                    const li = document.createElement('li');
-                    li.textContent = `${name}: ${data.liveAnswers[name]}`;
-                    liveAnswersList.appendChild(li);
+            if (data.type === 'updateAnswers') {
+                answersList.innerHTML = '';
+                if (data.answers) {
+                    Object.keys(data.answers).forEach(name => {
+                        const li = document.createElement('li');
+                        li.textContent = `${name}: ${data.answers[name]}`;
+                        answersList.appendChild(li);
+                    });
                 }
             }
         };
-
+        
         correctButton.addEventListener('click', () => {
             ws.send(JSON.stringify({
                 type: 'updatePoints',

@@ -32,130 +32,90 @@
                 </div>
             </div>
             
-            <div id="player-controls" class="column">
-                <div id="player-info">
-                    <h3>Willkommen, <span id="player-name"></span>!</h3>
-                    <p id="question-text">Frage wird vom Host geladen...</p>
-                    <p id="status-message">Der Buzzer ist geschlossen.</p>
+            <div id="buzzer-container" class="column">
+                <div id="question-area">
+                    <p id="question-text"></p>
                 </div>
-                
-                <button id="buzzer-button" disabled>Buzz!</button>
-                
-                <div id="answer-section" style="display: none;">
-                    <label for="answer-input">Deine Antwort:</label>
-                    <input type="text" id="answer-input" placeholder="Antwort eingeben...">
-                    <button id="submit-answer-button">Antwort senden</button>
+                <button id="buzzer-button" disabled>Buzz</button>
+                <p id="status-message">Gib deinen Namen ein, um zu starten.</p>
+                <div id="answer-section" style="display:none;">
+                    <input type="text" id="answer-input" placeholder="Deine Antwort...">
+                    <button id="submit-answer-button" disabled>Senden</button>
                 </div>
             </div>
         </div>
     </div>
-
     <audio id="buzz-sound" src="buzz.mp3" preload="auto"></audio>
     <audio id="correct-sound" src="correct.mp3" preload="auto"></audio>
     <audio id="wrong-sound" src="wrong.mp3" preload="auto"></audio>
-
+    
     <script>
-        const ws = new WebSocket(`wss://${window.location.host}`);
-        
         const loginForm = document.getElementById('login-form');
+        const loginButton = document.getElementById('login-button');
         const nameInput = document.getElementById('name-input');
         const passwordInput = document.getElementById('password-input');
         const mainContent = document.getElementById('main-content');
-        
         const buzzerButton = document.getElementById('buzzer-button');
         const statusMessage = document.getElementById('status-message');
-        const playerNameSpan = document.getElementById('player-name');
         const scoreList = document.getElementById('score-list');
         const questionText = document.getElementById('question-text');
-        
-        const buzzSound = document.getElementById('buzz-sound');
-        const correctSound = document.getElementById('correct-sound');
-        const wrongSound = document.getElementById('wrong-sound');
-        
         const answerSection = document.getElementById('answer-section');
         const answerInput = document.getElementById('answer-input');
         const submitAnswerButton = document.getElementById('submit-answer-button');
+        const buzzSound = document.getElementById('buzz-sound');
+        const correctSound = document.getElementById('correct-sound');
+        const wrongSound = document.getElementById('wrong-sound');
 
-        let isHost = false;
+        const ws = new WebSocket(`wss://${window.location.host}`);
 
-        function playSound(sound) {
-            sound.currentTime = 0;
-            sound.play();
-        }
-
-        loginForm.addEventListener('submit', (event) => {
-            event.preventDefault();
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
             const name = nameInput.value;
             const password = passwordInput.value;
-            if (name && password) {
-                ws.send(JSON.stringify({ type: 'auth', name, password }));
+            if (name) {
+                ws.send(JSON.stringify({
+                    type: 'login',
+                    name: name,
+                    password: password
+                }));
             }
         });
 
-        buzzerButton.addEventListener('click', () => {
-            ws.send(JSON.stringify({ type: 'buzz', name: nameInput.value }));
-            playSound(buzzSound);
-        });
-        
-        submitAnswerButton.addEventListener('click', () => {
-            const answer = answerInput.value;
-            if (answer) {
-                ws.send(JSON.stringify({ type: 'submitAnswer', name: nameInput.value, answer: answer }));
-                answerInput.value = '';
-                submitAnswerButton.disabled = true;
-                answerInput.disabled = true;
-            }
-        });
-
-        function renderScores(scores, activePlayers) {
-            scoreList.innerHTML = '';
-            for (const name in scores) {
-                const li = document.createElement('li');
-                li.textContent = `${name}: ${scores[name]}`;
-                if (activePlayers.includes(name)) {
-                    li.classList.add('active-player');
-                }
-                scoreList.appendChild(li);
-            }
-        }
-        
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             
             if (data.type === 'loginSuccess') {
                 if (data.isHost) {
+                    // Speichere den Sitzungsschlüssel, um ihn auf der Quizmaster-Seite zu verwenden
+                    localStorage.setItem('hostSessionId', data.hostSessionId);
+                    // Leite zum Quizmaster-Panel weiter
                     window.location.href = '/quizmaster.html';
                 } else {
-                    document.getElementById('login-form').style.display = 'none';
+                    loginForm.style.display = 'none';
                     mainContent.style.display = 'flex';
-                    playerNameSpan.textContent = nameInput.value;
-                    isHost = data.isHost;
+                    statusMessage.textContent = 'Bereit zu buzzern!';
+                    console.log(`Verbunden als ${nameInput.value}`);
                 }
-            }
-            
-            if (data.type === 'loginFailure') {
-                alert('Login fehlgeschlagen. Überprüfen Sie Ihren Namen und Ihr Passwort.');
             }
 
             if (data.type === 'updateStatus') {
                 if (data.status === 'open') {
-                    statusMessage.textContent = 'Buzzer ist offen! Sei schnell!';
+                    statusMessage.textContent = 'Buzzer ist offen! Buzze schnell!';
                     buzzerButton.disabled = false;
-                    answerSection.style.display = 'none'; 
-                } else if (data.buzzedIn) {
-                    statusMessage.textContent = `${data.buzzedIn} hat zuerst gebuzzt!`;
-                    buzzerButton.disabled = true;
                     answerSection.style.display = 'none';
-                    if (data.buzzedIn === nameInput.value) {
-                       answerSection.style.display = 'block';
-                       answerInput.disabled = false;
-                       submitAnswerButton.disabled = false;
-                    }
-                } else {
+                } else if (data.status === 'closed') {
                     statusMessage.textContent = 'Der Buzzer ist geschlossen.';
                     buzzerButton.disabled = true;
-                    answerSection.style.display = 'none';
                 }
+            }
+            
+            if (data.type === 'buzzerResponse') {
+                statusMessage.textContent = `${nameInput.value}, du hast zuerst gebuzzt!`;
+                buzzerButton.disabled = true;
+                answerSection.style.display = 'block';
+                answerInput.disabled = false;
+                submitAnswerButton.disabled = false;
+                buzzSound.play();
             }
             
             if (data.type === 'updateQuestion') {
@@ -180,6 +140,39 @@
         ws.onclose = () => {
             console.log('Verbindung getrennt.');
         };
+        
+        buzzerButton.addEventListener('click', () => {
+            ws.send(JSON.stringify({ type: 'buzz' }));
+        });
+        
+        submitAnswerButton.addEventListener('click', () => {
+            const answer = answerInput.value;
+            if (answer) {
+                ws.send(JSON.stringify({
+                    type: 'submitAnswer',
+                    answer: answer
+                }));
+            }
+        });
+
+        function renderScores(scores, activePlayers) {
+            scoreList.innerHTML = '';
+            scores.sort((a, b) => b.totalScore - a.totalScore);
+            scores.forEach(player => {
+                const li = document.createElement('li');
+                if (activePlayers.includes(player.name)) {
+                    li.innerHTML = `<strong>${player.name}</strong>: ${player.totalScore} Punkte`;
+                } else {
+                    li.innerHTML = `${player.name}: ${player.totalScore} Punkte`;
+                }
+                scoreList.appendChild(li);
+            });
+        }
+        
+        function playSound(soundElement) {
+            soundElement.currentTime = 0;
+            soundElement.play();
+        }
     </script>
 </body>
 </html>
