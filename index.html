@@ -95,6 +95,7 @@
 
         buzzerButton.addEventListener('click', () => {
             ws.send(JSON.stringify({ type: 'buzz', name: nameInput.value }));
+            playSound(buzzSound);
         });
         
         submitAnswerButton.addEventListener('click', () => {
@@ -124,7 +125,6 @@
             
             if (data.type === 'loginSuccess') {
                 if (data.isHost) {
-                    // Leite Hosts auf die Quizmaster-Seite um
                     window.location.href = '/quizmaster.html';
                 } else {
                     document.getElementById('login-form').style.display = 'none';
