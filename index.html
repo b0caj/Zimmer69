@@ -142,6 +142,7 @@
                 if (data.status === 'open') {
                     statusMessage.textContent = 'Buzzer ist offen! Sei schnell!';
                     buzzerButton.disabled = false;
+                    answerSection.style.display = 'none'; // Verstecke den Antwortbereich, wenn der Buzzer offen ist
                 } else if (data.buzzedIn) {
                     if (data.buzzedIn === nameInput.value) {
                         statusMessage.textContent = 'Du hast zuerst gebuzzt!';
@@ -150,6 +151,7 @@
                         submitAnswerButton.disabled = false;
                     } else {
                         statusMessage.textContent = `${data.buzzedIn} hat zuerst gebuzzt!`;
+                        answerSection.style.display = 'none';
                     }
                     buzzerButton.disabled = true;
                 } else {
