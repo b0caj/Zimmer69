@@ -12,9 +12,9 @@
         
         <div id="score-controls" style="display: none;">
             <p>Buzzed in: <span id="buzzed-in-name"></span></p>
-            <button id="correct-button" data-points="10">Correct (+10)</button>
-            <button id="incorrect-button" data-points="-5">Incorrect (-5)</button>
-            <button id="pass-button">Pass</button>
+            <button id="correct-button" data-points="5">Korrekt (5 Punkte)</button>
+            <button id="incorrect-button" data-points="-1">Falsch (1 Punkt an alle anderen)</button>
+            <button id="pass-button">Passen</button>
         </div>
         
         <button id="reset-button">Open Buzzer</button>
@@ -22,58 +22,60 @@
     </div>
 
     <script>
-    const ws = new WebSocket(`ws://${window.location.host}`);
-    const resetButton = document.getElementById('reset-button');
-    const statusMessage = document.getElementById('status-message');
-    const buzzedInName = document.getElementById('buzzed-in-name');
-    const scoreControls = document.getElementById('score-controls');
-    const correctButton = document.getElementById('correct-button');
-    const incorrectButton = document.getElementById('incorrect-button');
-    const passButton = document.getElementById('pass-button');
+        const ws = new WebSocket(`ws://${window.location.host}`);
+        const resetButton = document.getElementById('reset-button');
+        const statusMessage = document.getElementById('status-message');
+        const buzzedInName = document.getElementById('buzzed-in-name');
+        const scoreControls = document.getElementById('score-controls');
+        const correctButton = document.getElementById('correct-button');
+        const incorrectButton = document.getElementById('incorrect-button');
+        const passButton = document.getElementById('pass-button');
 
-    ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'initialStatus' || data.type === 'buzzed') {
-            if (data.status === 'open') {
-                statusMessage.textContent = 'Buzzer ist offen!';
-                resetButton.style.display = 'block';
-                scoreControls.style.display = 'none';
-            } else if (data.buzzedIn) {
-                statusMessage.textContent = `Gebuzzt: ${data.buzzedIn}`;
-                buzzedInName.textContent = data.buzzedIn;
-                resetButton.style.display = 'none';
-                scoreControls.style.display = 'block';
-            } else {
-                statusMessage.textContent = 'Buzzer ist geschlossen.';
-                resetButton.style.display = 'block';
-                scoreControls.style.display = 'none';
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'buzzerStatus') {
+                if (data.buzzerStatus === 'open') {
+                    statusMessage.textContent = 'Buzzer ist offen!';
+                    resetButton.style.display = 'block';
+                    scoreControls.style.display = 'none';
+                } else if (data.buzzedIn) {
+                    statusMessage.textContent = `Gebuzzert: ${data.buzzedIn}`;
+                    buzzedInName.textContent = data.buzzedIn;
+                    resetButton.style.display = 'none';
+                    scoreControls.style.display = 'block';
+                } else {
+                    statusMessage.textContent = 'Buzzer ist geschlossen.';
+                    resetButton.style.display = 'block';
+                    scoreControls.style.display = 'none';
+                }
             }
-        }
-    };
+        };
 
-    correctButton.addEventListener('click', () => {
-        ws.send(JSON.stringify({
-            type: 'correctBuzzer'
-        }));
-    });
+        correctButton.addEventListener('click', () => {
+            ws.send(JSON.stringify({
+                type: 'correctAnswer',
+                points: 5
+            }));
+        });
 
-    incorrectButton.addEventListener('click', () => {
-        ws.send(JSON.stringify({
-            type: 'incorrectBuzzer'
-        }));
-    });
-    
-    passButton.addEventListener('click', () => {
-        ws.send(JSON.stringify({
-            type: 'reset'
-        }));
-    });
+        incorrectButton.addEventListener('click', () => {
+            ws.send(JSON.stringify({
+                type: 'wrongAnswer',
+                points: -1
+            }));
+        });
+        
+        passButton.addEventListener('click', () => {
+            ws.send(JSON.stringify({
+                type: 'reset'
+            }));
+        });
 
-    resetButton.addEventListener('click', () => {
-        ws.send(JSON.stringify({
-            type: 'reset'
-        }));
-    });
-</script>
+        resetButton.addEventListener('click', () => {
+            ws.send(JSON.stringify({
+                type: 'reset'
+            }));
+        });
+    </script>
 </body>
 </html>
