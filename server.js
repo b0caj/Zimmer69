@@ -310,8 +310,22 @@ wss.on('connection', ws => {
         if (data.type === 'buzz' && buzzerStatus === 'open' && !buzzedIn) {
             buzzedIn = data.name;
             buzzerStatus = 'closed';
+
+            // Sende eine spezielle Nachricht an alle Clients, die den Namen des Buzzers enthält
+            const buzzedInMessage = {
+                type: 'buzzedIn',
+                name: buzzedIn
+            };
+
+            wss.clients.forEach(client => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify(buzzedInMessage));
+                }
+            });
+
+            // Sende eine allgemeine Statusaktualisierung
             broadcastStatus();
-            ws.send(JSON.stringify({ type: 'buzzerResponse', response: 'ok' }));
+            
             console.log(`${data.name} hat gebuzzt!`);
         }
 
