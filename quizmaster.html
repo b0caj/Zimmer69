@@ -1,66 +1,128 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quizmaster Control</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="custom-form.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <h1>Quizmaster Control Panel</h1>
         
-        <div id="score-controls" style="display: none;">
-            <p>Buzzed in: <span id="buzzed-in-name"></span></p>
-            <button id="correct-button" data-points="10">Correct (+10)</button>
-            <button id="incorrect-button" data-points="-5">Incorrect (-5)</button>
-            <button id="pass-button">Pass</button>
+        <div id="quiz-controls">
+            <p id="current-question"></p>
+            <div class="navigation-buttons">
+                <button id="prev-question-button">Vorherige Frage</button>
+                <button id="next-question-button">Nächste Frage</button>
+            </div>
+            <button id="reset-buzzer-button">Buzzer öffnen</button>
+            <p id="status-message">Buzzer ist geschlossen.</p>
+        </div>
+
+        <div id="player-buzz-info" style="display: none;">
+            <h2>Gebuzzt: <span id="buzzed-in-name"></span></h2>
+            <div id="score-controls" class="control-grid">
+                <button id="correct-button" data-points="10">Korrekt (+10)</button>
+                <button id="incorrect-button" data-points="-5">Falsch (-5)</button>
+                <button id="pass-button">Passen</button>
+            </div>
+        </div>
+
+        <div id="stats-container">
+            <h2>Live-Statistiken</h2>
+            <div id="stats-grid"></div>
+        </div>
+
+        <div id="answers-container">
+            <h2>Live-Antworten</h2>
+            <ul id="live-answers-list"></ul>
         </div>
         
-        <button id="reset-button">Open Buzzer</button>
-        <p id="status-message">Waiting for the first buzz...</p>
+        <button id="reset-stats-button">Alle Statistiken zurücksetzen</button>
     </div>
 
     <script>
-        const ws = new WebSocket(`ws://${window.location.host}`);
-        const resetButton = document.getElementById('reset-button');
+        const ws = new WebSocket(`wss://${window.location.host}`);
+        
         const statusMessage = document.getElementById('status-message');
         const buzzedInName = document.getElementById('buzzed-in-name');
+        const playerBuzzInfo = document.getElementById('player-buzz-info');
         const scoreControls = document.getElementById('score-controls');
         const correctButton = document.getElementById('correct-button');
         const incorrectButton = document.getElementById('incorrect-button');
         const passButton = document.getElementById('pass-button');
+        const resetBuzzerButton = document.getElementById('reset-buzzer-button');
+        const nextQuestionButton = document.getElementById('next-question-button');
+        const prevQuestionButton = document.getElementById('prev-question-button');
+        const currentQuestionText = document.getElementById('current-question');
+        const statsGrid = document.getElementById('stats-grid');
+        const liveAnswersList = document.getElementById('live-answers-list');
+        const resetStatsButton = document.getElementById('reset-stats-button');
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            if (data.type === 'buzzedIn') {
-                statusMessage.textContent = `Buzzed: ${data.name}`;
-                buzzedInName.textContent = data.name;
-                resetButton.style.display = 'none';
-                scoreControls.style.display = 'block';
-            }
-
-            if (data.type === 'reset') {
-                statusMessage.textContent = 'Buzzer is open!';
-                resetButton.style.display = 'block';
-                scoreControls.style.display = 'none';
+            if (data.type === 'updateStatus') {
+                if (data.status === 'open') {
+                    statusMessage.textContent = 'Buzzer ist offen!';
+                    playerBuzzInfo.style.display = 'none';
+                    resetBuzzerButton.style.display = 'block';
+                } else if (data.buzzedIn) {
+                    statusMessage.textContent = 'Buzzer ist geschlossen.';
+                    playerBuzzInfo.style.display = 'block';
+                    buzzedInName.textContent = data.buzzedIn;
+                    resetBuzzerButton.style.display = 'none';
+                } else {
+                    statusMessage.textContent = 'Buzzer ist geschlossen.';
+                    playerBuzzInfo.style.display = 'none';
+                    resetBuzzerButton.style.display = 'block';
+                }
             }
             
-            if (data.type === 'initialStatus') {
-                if (data.status === 'open') {
-                    statusMessage.textContent = 'Buzzer is open!';
-                    resetButton.style.display = 'block';
-                    scoreControls.style.display = 'none';
-                } else if (data.buzzedIn) {
-                    statusMessage.textContent = `Buzzed: ${data.buzzedIn}`;
-                    buzzedInName.textContent = data.buzzedIn;
-                    resetButton.style.display = 'none';
-                    scoreControls.style.display = 'block';
-                } else {
-                    statusMessage.textContent = 'Buzzer is closed.';
-                    resetButton.style.display = 'block';
-                    scoreControls.style.display = 'none';
+            if (data.type === 'updateQuestion') {
+                currentQuestionText.textContent = data.question;
+            }
+
+            if (data.type === 'updateStats') {
+                statsGrid.innerHTML = '';
+                const sortedPlayers = Object.entries(data.stats)
+                    .sort(([, a], [, b]) => b.totalScore - a.totalScore);
+
+                sortedPlayers.forEach(([name, stats]) => {
+                    const playerCard = document.createElement('div');
+                    playerCard.className = 'player-card';
+                    playerCard.innerHTML = `
+                        <div class="player-name">${name}</div>
+                        <div class="stat-item">
+                            <span class="stat-label">Gesamtpunkte:</span>
+                            <span class="stat-value">${stats.totalScore}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Korrekte Antworten:</span>
+                            <span class="stat-value">${stats.correctAnswers}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Falsche Antworten:</span>
+                            <span class="stat-value">${stats.incorrectAnswers}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Antwortquote:</span>
+                            <span class="stat-value">${(stats.totalQuestionsAnswered > 0) ? (stats.correctAnswers / stats.totalQuestionsAnswered * 100).toFixed(2) : 0}%</span>
+                        </div>
+                    `;
+                    statsGrid.appendChild(playerCard);
+                });
+            }
+            
+            if (data.type === 'liveAnswers') {
+                liveAnswersList.innerHTML = '';
+                for (const name in data.liveAnswers) {
+                    const li = document.createElement('li');
+                    li.textContent = `${name}: ${data.liveAnswers[name]}`;
+                    liveAnswersList.appendChild(li);
                 }
             }
         };
@@ -68,14 +130,14 @@
         correctButton.addEventListener('click', () => {
             ws.send(JSON.stringify({
                 type: 'updatePoints',
-                points: 5
+                points: parseInt(correctButton.dataset.points)
             }));
         });
 
         incorrectButton.addEventListener('click', () => {
             ws.send(JSON.stringify({
                 type: 'updatePoints',
-                points: +1
+                points: parseInt(incorrectButton.dataset.points)
             }));
         });
         
@@ -85,11 +147,36 @@
             }));
         });
 
-        resetButton.addEventListener('click', () => {
+        resetBuzzerButton.addEventListener('click', () => {
             ws.send(JSON.stringify({
                 type: 'reset'
             }));
         });
+        
+        nextQuestionButton.addEventListener('click', () => {
+            ws.send(JSON.stringify({
+                type: 'nextQuestion'
+            }));
+        });
+        
+        prevQuestionButton.addEventListener('click', () => {
+            ws.send(JSON.stringify({
+                type: 'prevQuestion'
+            }));
+        });
+        
+        resetStatsButton.addEventListener('click', () => {
+            if (confirm("Möchten Sie wirklich alle Spielerstatistiken zurücksetzen?")) {
+                ws.send(JSON.stringify({
+                    type: 'resetAllPlayerStats'
+                }));
+            }
+        });
+
+        ws.onopen = () => {
+            // Sende eine Nachricht, um dem Server mitzuteilen, dass dies der Host ist
+            // Dies geschieht nach einem erfolgreichen Login auf der index.html
+        };
     </script>
 </body>
 </html>
