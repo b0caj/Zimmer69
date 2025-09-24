@@ -12,9 +12,9 @@
         
         <div id="score-controls" style="display: none;">
             <p>Buzzed in: <span id="buzzed-in-name"></span></p>
-            <button id="correct-button" data-points="5">Korrekt (5 Punkte)</button>
-            <button id="incorrect-button" data-points="-1">Falsch (1 Punkt an alle anderen)</button>
-            <button id="pass-button">Passen</button>
+            <button id="correct-button" data-points="10">Correct (+10)</button>
+            <button id="incorrect-button" data-points="-5">Incorrect (-5)</button>
+            <button id="pass-button">Pass</button>
         </div>
         
         <button id="reset-button">Open Buzzer</button>
@@ -33,18 +33,32 @@
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            if (data.type === 'buzzerStatus') {
-                if (data.buzzerStatus === 'open') {
-                    statusMessage.textContent = 'Buzzer ist offen!';
+
+            if (data.type === 'buzzedIn') {
+                statusMessage.textContent = `Buzzed: ${data.name}`;
+                buzzedInName.textContent = data.name;
+                resetButton.style.display = 'none';
+                scoreControls.style.display = 'block';
+            }
+
+            if (data.type === 'reset') {
+                statusMessage.textContent = 'Buzzer is open!';
+                resetButton.style.display = 'block';
+                scoreControls.style.display = 'none';
+            }
+            
+            if (data.type === 'initialStatus') {
+                if (data.status === 'open') {
+                    statusMessage.textContent = 'Buzzer is open!';
                     resetButton.style.display = 'block';
                     scoreControls.style.display = 'none';
                 } else if (data.buzzedIn) {
-                    statusMessage.textContent = `Gebuzzert: ${data.buzzedIn}`;
+                    statusMessage.textContent = `Buzzed: ${data.buzzedIn}`;
                     buzzedInName.textContent = data.buzzedIn;
                     resetButton.style.display = 'none';
                     scoreControls.style.display = 'block';
                 } else {
-                    statusMessage.textContent = 'Buzzer ist geschlossen.';
+                    statusMessage.textContent = 'Buzzer is closed.';
                     resetButton.style.display = 'block';
                     scoreControls.style.display = 'none';
                 }
@@ -53,15 +67,15 @@
 
         correctButton.addEventListener('click', () => {
             ws.send(JSON.stringify({
-                type: 'correctAnswer',
+                type: 'updatePoints',
                 points: 5
             }));
         });
 
         incorrectButton.addEventListener('click', () => {
             ws.send(JSON.stringify({
-                type: 'wrongAnswer',
-                points: -1
+                type: 'updatePoints',
+                points: +1
             }));
         });
         

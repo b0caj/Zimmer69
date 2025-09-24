@@ -171,19 +171,18 @@
             }
         });
 
-        function renderScores(scores) {
+        function renderScores(scores, activePlayers) {
             const scoreList = document.getElementById('score-list');
             scoreList.innerHTML = '';
 
-            // Sortiert die Spieler nach ihrer Punktzahl in absteigender Reihenfolge
-            const sortedScores = scores.sort((a, b) => b.score - a.score);
+            const sortedScores = Object.entries(scores).sort(([, scoreA], [, scoreB]) => scoreB - scoreA);
 
-            sortedScores.forEach(player => {
+            sortedScores.forEach(([name, score]) => {
                 const li = document.createElement('li');
-                li.textContent = `${player.name}: ${player.score}`;
+                li.textContent = `${name}: ${score}`;
 
-                if (player.isHost) {
-                    li.classList.add('is-host');
+                if (activePlayers[name]) {
+                    li.style.color = '#03dac6';
                 }
                 scoreList.appendChild(li);
             });
@@ -222,26 +221,28 @@
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            if (data.type === 'loginSuccess') {
-                isHost = data.role === 'host';
-                loginForm.style.display = 'none';
-                mainContent.style.display = 'flex';
-                if (isHost) {
-                    hostActions.style.display = 'block';
-                    answerForm.style.display = 'none';
-                    liveAnswersContainer.style.display = 'block';
-                    buzzerButton.style.display = 'none';
+            if (data.type === 'loginSuccess' || data.type === 'loginFailure') {
+                if (data.type === 'loginSuccess') {
+                    isHost = data.isHost;
+                    loginForm.style.display = 'none';
+                    mainContent.style.display = 'flex';
+                    if (isHost) {
+                        hostActions.style.display = 'block';
+                        answerForm.style.display = 'none';
+                        liveAnswersContainer.style.display = 'block';
+                        buzzerButton.style.display = 'none';
+                    } else {
+                        buzzerButton.style.display = 'block';
+                        answerForm.style.display = 'block';
+                    }
+                    statusMessage.textContent = 'Erfolgreich eingeloggt!';
                 } else {
-                    buzzerButton.style.display = 'block';
-                    answerForm.style.display = 'block';
+                    alert('Login fehlgeschlagen. Überprüfen Sie Ihren Namen und Ihr Passwort.');
                 }
-                statusMessage.textContent = 'Erfolgreich eingeloggt!';
-            } else if (data.type === 'loginFailed') {
-                alert('Login fehlgeschlagen. Überprüfen Sie Ihren Namen und Ihr Passwort.');
             }
 
             if (data.type === 'updateScores') {
-                renderScores(data.scores);
+                renderScores(data.scores, data.activePlayers);
             }
 
             if (data.type === 'questionUpdate' && isHost) {
@@ -298,7 +299,7 @@
             }
             
             if (data.type === 'updateScores') {
-                renderScores(data.scores);
+                renderScores(data.scores, data.activePlayers);
             }
             
             if (data.type === 'correctAnswer') {
