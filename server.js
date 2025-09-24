@@ -286,24 +286,33 @@ wss.on('connection', ws => {
     ws.on('message', async message => {
         const data = JSON.parse(message);
 
-        if (data.type === 'login') {
-            if (data.name === hostCredentials.name && data.password === hostCredentials.password) {
-                ws.isHost = true;
-                ws.send(JSON.stringify({ type: 'loginSuccessful', name: data.name, isHost: true }));
-                console.log(`Host ${data.name} hat sich eingeloggt.`);
-                broadcastScores(); // Host-Login neu übermitteln
-            } else {
-                const user = persistedData.users.find(u => u.name === data.name && u.password === data.password);
-                if (user) {
-                    ws.userName = data.name; // <--- Hinzufügen: Speichern des Spielernamens auf der WebSocket-Verbindung
-                    ws.send(JSON.stringify({ type: 'loginSuccessful', name: data.name, isHost: false }));
-                    console.log(`Spieler ${data.name} hat sich eingeloggt.`);
-                    broadcastScores();
-                } else {
-                    ws.send(JSON.stringify({ type: 'loginFailed', message: 'Falscher Nutzername oder falsches Passwort.' }));
-                }
-            }
+       if (data.type === 'auth') {
+        const isPlayer = persistedPlayers[data.name]; // Dies muss hier hinzugefügt werden
+
+        // Host-Login
+        if (data.name === hostCredentials.name && data.password === hostCredentials.password) {
+            console.log(`Host ${data.name} hat sich erfolgreich angemeldet.`);
+            ws.userName = data.name;
+            ws.isHost = true;
+            ws.send(JSON.stringify({ type: 'loginSuccess', isHost: true }));
+            broadcastScores();
+            broadcastStats();
         }
+        // Spieler-Login
+        else if (isPlayer && isPlayer.password === data.password) {
+            console.log(`Spieler ${data.name} hat sich erfolgreich angemeldet.`);
+            ws.userName = data.name;
+            ws.isHost = false; // Dies muss auf false geändert werden
+            ws.send(JSON.stringify({ type: 'loginSuccess', isHost: false }));
+            broadcastScores();
+            broadcastStats();
+        }
+        // Anmelde-Fehler
+        else {
+            console.log('Anmeldeversuch fehlgeschlagen.');
+            ws.send(JSON.stringify({ type: 'loginFailure', message: 'Falscher Nutzername oder falsches Passwort.' }));
+        }
+    }
         if (data.type === 'buzz' && buzzerStatus === 'open' && !buzzedIn) {
             buzzedIn = data.name;
             buzzerStatus = 'closed';
