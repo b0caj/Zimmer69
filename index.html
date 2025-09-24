@@ -125,7 +125,7 @@
             const name = nameInput.value;
             const password = passwordInput.value;
 
-            sendWsMessage({ type: 'login', name, password });
+            sendWsMessage({ type: 'auth', name, password });
         });
 
         function sendWsMessage(message) {
@@ -221,8 +221,8 @@
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            if (data.type === 'authResponse') {
-                if (data.success) {
+            if (data.type === 'loginSuccess' || data.type === 'loginFailure') {
+                if (data.type === 'loginSuccess') {
                     isHost = data.isHost;
                     loginForm.style.display = 'none';
                     mainContent.style.display = 'flex';
