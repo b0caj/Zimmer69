@@ -6,7 +6,6 @@
     <title>Quiz Buzzer</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="custom-form.css">
-    
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -142,18 +141,16 @@
                 if (data.status === 'open') {
                     statusMessage.textContent = 'Buzzer ist offen! Sei schnell!';
                     buzzerButton.disabled = false;
-                    answerSection.style.display = 'none'; // Verstecke den Antwortbereich, wenn der Buzzer offen ist
+                    answerSection.style.display = 'none'; 
                 } else if (data.buzzedIn) {
-                    if (data.buzzedIn === nameInput.value) {
-                        statusMessage.textContent = 'Du hast zuerst gebuzzt!';
-                        answerSection.style.display = 'block';
-                        answerInput.disabled = false;
-                        submitAnswerButton.disabled = false;
-                    } else {
-                        statusMessage.textContent = `${data.buzzedIn} hat zuerst gebuzzt!`;
-                        answerSection.style.display = 'none';
-                    }
+                    statusMessage.textContent = `${data.buzzedIn} hat zuerst gebuzzt!`;
                     buzzerButton.disabled = true;
+                    answerSection.style.display = 'none';
+                    if (data.buzzedIn === nameInput.value) {
+                       answerSection.style.display = 'block';
+                       answerInput.disabled = false;
+                       submitAnswerButton.disabled = false;
+                    }
                 } else {
                     statusMessage.textContent = 'Der Buzzer ist geschlossen.';
                     buzzerButton.disabled = true;
