@@ -3,6 +3,7 @@ const http = require('http');
 const path = require('path');
 const { MongoClient } = require('mongodb');
 const { ObjectId } = require('mongodb');
+const fs = require('fs');
 
 // Ihre MongoDB-Verbindungs-URL aus den Umgebungsvariablen
 const uri = process.env.MONGODB_URI;
@@ -20,7 +21,8 @@ let persistedPlayers = {};
 // Globale Variable für persistierte Spieler- und Hostdaten
 let persistedData = { users: [], host: {} };
 
-
+// Globale Variable für Host-Daten, geladen aus der Datenbank
+let hostUser = null;
 
 // WebSocket Server
 const wss = new WebSocket.Server({ noServer: true });
@@ -36,7 +38,7 @@ async function connectToDatabase() {
         await client.connect();
         console.log("Erfolgreich mit der MongoDB-Datenbank verbunden!");
 
-        const db = client.db(); // Wenn die URI einen Datenbanknamen hat, kann db() ohne Argument aufgerufen werden
+        const db = client.db();
         playersCollection = db.collection('players');
         questionsCollection = db.collection('questions');
 
@@ -60,6 +62,12 @@ async function loadPersistedData() {
                 obj[user.name] = user;
                 return obj;
             }, {});
+            
+            // Host-Daten aus dem separaten 'host'-Objekt der Datenbank laden
+            if (persistedData.host) {
+                hostUser = persistedData.host;
+            }
+
             console.log("Persistierte Spielerdaten erfolgreich geladen.");
         } else {
             console.log("Keine persistierten Spielerdaten in der Datenbank gefunden.");
@@ -93,11 +101,9 @@ async function updatePlayer(name, updates) {
             const updatedUser = { ...currentUser, ...updates };
             persistedData.users[userIndex] = updatedUser;
 
-            // Finde das korrekte Dokument (nehmen wir an, es gibt nur eins)
             const playerDoc = await playersCollection.findOne({});
 
             if (playerDoc) {
-                // Erstelle ein Update-Objekt, um nur das spezifische Element im Array zu aktualisieren
                 const updateQuery = {
                     $set: {
                         [`users.${userIndex}.totalScore`]: updatedUser.totalScore,
@@ -117,7 +123,6 @@ async function updatePlayer(name, updates) {
 
 async function resetAllPlayerStats() {
     try {
-        // Setze die Statistiken aller Spieler im Arbeitsspeicher zurück
         persistedData.users = persistedData.users.map(user => ({
             ...user,
             totalScore: 0,
@@ -126,11 +131,9 @@ async function resetAllPlayerStats() {
             totalQuestionsAnswered: 0
         }));
         
-        // Finde das korrekte Dokument (nehmen wir an, es gibt nur eins)
         const playerDoc = await playersCollection.findOne({});
 
         if (playerDoc) {
-            // Erstelle ein Update-Objekt, um das gesamte `users`-Array zu ersetzen
             const updateQuery = {
                 $set: {
                     users: persistedData.users
@@ -170,19 +173,15 @@ function broadcastScores() {
     let activePlayers = [];
     let activeScores = {};
 
-    // Iteriere über alle verbundenen Clients, um aktive Spieler zu finden
     wss.clients.forEach(client => {
-        // Stelle sicher, dass der Client offen ist, eine Spielerverbindung hat und kein Host ist
         if (client.readyState === WebSocket.OPEN && client.userName) {
             activePlayers.push(client.userName);
-            // Sammle die Punktzahlen der aktiven Spieler
             if (persistedPlayers[client.userName]) {
                 activeScores[client.userName] = persistedPlayers[client.userName].totalScore;
             }
         }
     });
 
-    // Sortiere die Punktzahlen der aktiven Spieler in absteigender Reihenfolge
     const sortedScores = Object.entries(activeScores)
         .sort(([, a], [, b]) => b - a)
         .reduce((acc, [key, value]) => {
@@ -204,7 +203,6 @@ function broadcastScores() {
 }
 
 function broadcastStats() {
-    // Sende alle Spielerstatistiken an den Host
     const statsData = {
         type: 'updateStats',
         stats: persistedPlayers
@@ -229,7 +227,6 @@ function broadcastQuestionUpdate() {
 }
 
 const server = http.createServer((req, res) => {
-    // Serve static files from the root directory
     let filePath = '.' + req.url;
     if (filePath === './') {
         filePath = './index.html';
@@ -282,33 +279,34 @@ wss.on('connection', ws => {
     ws.on('message', async message => {
         const data = JSON.parse(message);
 
-       if (data.type === 'auth') {
-        const isPlayer = persistedPlayers[data.name]; // Dies muss hier hinzugefügt werden
+        if (data.type === 'auth') {
+            const isPlayer = persistedPlayers[data.name];
 
-        // Host-Login
-        if (data.name === hostCredentials.name && data.password === hostCredentials.password) {
-            console.log(`Host ${data.name} hat sich erfolgreich angemeldet.`);
-            ws.userName = data.name;
-            ws.isHost = true;
-            ws.send(JSON.stringify({ type: 'loginSuccess', isHost: true }));
-            broadcastScores();
-            broadcastStats();
+            // Host-Login
+            if (hostUser && data.name === hostUser.name && data.password === hostUser.password) {
+                console.log(`Host ${data.name} hat sich erfolgreich angemeldet.`);
+                ws.userName = data.name;
+                ws.isHost = true;
+                ws.send(JSON.stringify({ type: 'loginSuccess', isHost: true }));
+                broadcastScores();
+                broadcastStats();
+            }
+            // Spieler-Login
+            else if (isPlayer && isPlayer.password === data.password) {
+                console.log(`Spieler ${data.name} hat sich erfolgreich angemeldet.`);
+                ws.userName = data.name;
+                ws.isHost = false;
+                ws.send(JSON.stringify({ type: 'loginSuccess', isHost: false }));
+                broadcastScores();
+                broadcastStats();
+            }
+            // Anmelde-Fehler
+            else {
+                console.log('Anmeldeversuch fehlgeschlagen.');
+                ws.send(JSON.stringify({ type: 'loginFailure', message: 'Falscher Nutzername oder falsches Passwort.' }));
+            }
         }
-        // Spieler-Login
-        else if (isPlayer && isPlayer.password === data.password) {
-            console.log(`Spieler ${data.name} hat sich erfolgreich angemeldet.`);
-            ws.userName = data.name;
-            ws.isHost = false; // Dies muss auf false geändert werden
-            ws.send(JSON.stringify({ type: 'loginSuccess', isHost: false }));
-            broadcastScores();
-            broadcastStats();
-        }
-        // Anmelde-Fehler
-        else {
-            console.log('Anmeldeversuch fehlgeschlagen.');
-            ws.send(JSON.stringify({ type: 'loginFailure', message: 'Falscher Nutzername oder falsches Passwort.' }));
-        }
-    }
+
         if (data.type === 'buzz' && buzzerStatus === 'open' && !buzzedIn) {
             buzzedIn = data.name;
             buzzerStatus = 'closed';
@@ -386,8 +384,6 @@ wss.on('connection', ws => {
 
         if (data.type === 'manualScoreChange' && ws.isHost) {
             const { name, newScore } = data;
-            const scoreDifference = newScore - (persistedPlayers[name] ? persistedPlayers[name].totalScore : 0);
-            
             const playerUpdates = {
                 totalScore: newScore
             };
@@ -423,10 +419,8 @@ wss.on('connection', ws => {
 });
 
 const PORT = process.env.PORT || 3000;
-const fs = require('fs');
 
 connectToDatabase().then(() => {
-    // Starten Sie den HTTP-Server nur, wenn die Datenbankverbindung erfolgreich ist
     server.listen(PORT, () => {
         console.log(`Server läuft auf Port ${PORT}`);
     });
