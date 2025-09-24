@@ -20,11 +20,7 @@ let persistedPlayers = {};
 // Globale Variable für persistierte Spieler- und Hostdaten
 let persistedData = { users: [], host: {} };
 
-// Harte Kodierung des Hosts zur Demonstration - in einer echten Anwendung vermeiden
-const hostCredentials = {
-    name: 'Quizmaster',
-    password: 'hostpassword'
-};
+
 
 // WebSocket Server
 const wss = new WebSocket.Server({ noServer: true });
