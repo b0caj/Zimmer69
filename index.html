@@ -6,7 +6,8 @@
     <title>Quiz Buzzer</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="custom-form.css">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
@@ -25,101 +26,276 @@
         </form>
         
         <div id="main-content" style="display: none;">
+            
             <div id="scoreboard-container" class="column">
                 <div id="scoreboard">
                     <h2>Punkte</h2>
                     <ul id="score-list"></ul>
                 </div>
+                
+                <a href="stats.html" class="button-link">
+                    <button id="stats-button" class="action-button">Statistiken ansehen</button>
+                </a>
+            </div>
+            
+            <div id="question-container" class="column">
+                <h3 id="question-text"></h3>
+                
+                <form id="answer-form" style="display: none;">
+                    <label for="answer-input">Antwort:</label>
+                    <input type="text" id="answer-input" placeholder="Gib deine Antwort hier ein">
+                    <button type="submit" class="action-button">Antwort senden</button>
+                </form>
+                
+                <div id="live-answers" style="display: none;">
+                    <h3>Live-Antworten</h3>
+                    <ul id="live-answers-list"></ul>
+                </div>
+                
+                <div id="host-controls" style="display: none;">
+                    <div id="submitted-answers" style="display: none;">
+                        <h3>Eingesendete Antworten</h3>
+                        <ul id="submitted-answers-list"></ul>
+                    </div>
+                    <div id="answer-review" style="display: none;">
+                        <h3>Antworten prüfen</h3>
+                        <div id="correct-answers-list"></div>
+                    </div>
+                </div>
+                
             </div>
             
             <div id="buzzer-container" class="column">
-                <div id="question-area">
-                    <p id="question-text"></p>
-                </div>
-                <button id="buzzer-button" disabled>Buzz</button>
-                <p id="status-message">Gib deinen Namen ein, um zu starten.</p>
-                <div id="answer-section" style="display:none;">
-                    <input type="text" id="answer-input" placeholder="Deine Antwort...">
-                    <button id="submit-answer-button" disabled>Senden</button>
+                <button id="buzzer-button" class="buzzer-button">Buzz</button>
+                <p id="status-message">Warten auf den Quizmaster...</p>
+                <div id="host-actions" style="display: none;">
+                    <div class="navigation-buttons">
+                        <button id="prev-question-button" class="action-button">Vorherige Frage</button>
+                        <button id="next-question-button" class="action-button">Nächste Frage</button>
+                    </div>
+                    <button id="open-buzzer-button" class="action-button">Buzzer öffnen</button>
+                    <button id="reset-button" class="action-button" style="display:none;">Buzzer zurücksetzen</button>
+                    <button id="reset-scores-button" class="action-button">Punkte zurücksetzen</button>
                 </div>
             </div>
         </div>
     </div>
-    <audio id="buzz-sound" src="buzz.mp3" preload="auto"></audio>
-    <audio id="correct-sound" src="correct.mp3" preload="auto"></audio>
-    <audio id="wrong-sound" src="wrong.mp3" preload="auto"></audio>
     
-<script>
-    const loginForm = document.getElementById('login-form');
-    const nameInput = document.getElementById('name-input');
-    const passwordInput = document.getElementById('password-input');
-    const mainContent = document.getElementById('main-content');
-    const buzzerButton = document.getElementById('buzzer-button');
-    const statusMessage = document.getElementById('status-message');
-    const questionText = document.getElementById('current-question');
-    const scoreList = document.getElementById('score-list');
-    const answerSection = document.getElementById('answer-section');
-    const answerInput = document.getElementById('answer-input');
-    const submitAnswerButton = document.getElementById('submit-answer-button');
+    <audio id="buzzSound" src="buzz.mp3"></audio>
+    <audio id="correctSound" src="correct.mp3"></audio>
+    <audio id="wrongSound" src="wrong.mp3"></audio>
+    
+    <script>
+        const ws = new WebSocket(`wss://${window.location.host}`);
+        const loginForm = document.getElementById('login-form');
+        const mainContent = document.getElementById('main-content');
+        const nameInput = document.getElementById('name-input');
+        const passwordInput = document.getElementById('password-input');
+        const loginButton = document.getElementById('login-button');
+        const buzzerButton = document.getElementById('buzzer-button');
+        const statusMessage = document.getElementById('status-message');
+        const scoreList = document.getElementById('score-list');
+        const questionText = document.getElementById('question-text');
+        const openBuzzerButton = document.getElementById('open-buzzer-button');
+        const resetButton = document.getElementById('reset-button');
+        const hostActions = document.getElementById('host-actions');
+        const answerForm = document.getElementById('answer-form');
+        const answerInput = document.getElementById('answer-input');
+        const nextQuestionButton = document.getElementById('next-question-button');
+        const prevQuestionButton = document.getElementById('prev-question-button');
+        const submittedAnswersList = document.getElementById('submitted-answers-list');
+        const submittedAnswersContainer = document.getElementById('submitted-answers');
+        const liveAnswersList = document.getElementById('live-answers-list');
+        const liveAnswersContainer = document.getElementById('live-answers');
+        const resetScoresButton = document.getElementById('reset-scores-button');
 
-    const correctSound = new Audio('correct.mp3');
-    const wrongSound = new Audio('wrong.mp3');
-    
-    // WebSocket-Verbindung
-    let ws;
-    
-    // Funktion zum Verbinden mit dem WebSocket-Server
-    function connectToServer(hostToken) {
-        let url = `wss://${window.location.host}`;
-        if (hostToken) {
-            url += `?hostToken=${hostToken}`;
+        const buzzSound = document.getElementById('buzzSound');
+        const correctSound = document.getElementById('correctSound');
+        const wrongSound = document.getElementById('wrongSound');
+
+        let isHost = false;
+
+        function playSound(sound) {
+            sound.currentTime = 0;
+            sound.play();
         }
-        ws = new WebSocket(url);
 
-        ws.onopen = () => {
-            console.log('Mit dem WebSocket-Server verbunden.');
-            if (hostToken) {
-                // Host-Verbindung ist über Token bereits authentifiziert
-                window.location.href = 'quizmaster.html';
+        loginForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const name = nameInput.value;
+            const password = passwordInput.value;
+
+            sendWsMessage({ type: 'auth', name, password });
+        });
+
+        function sendWsMessage(message) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(message));
+            } else {
+                console.error('WebSocket ist nicht offen. Nachricht wurde nicht gesendet:', message);
             }
-        };
+        }
+        
+        buzzerButton.addEventListener('click', () => {
+            sendWsMessage({ type: 'buzz' });
+            buzzerButton.disabled = true;
+        });
+        
+        openBuzzerButton.addEventListener('click', () => {
+            sendWsMessage({ type: 'openBuzzer' });
+            openBuzzerButton.style.display = 'none';
+        });
+
+        resetButton.addEventListener('click', () => {
+            sendWsMessage({ type: 'reset' });
+        });
+
+        answerForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            sendWsMessage({ type: 'answer', answer: answerInput.value });
+            answerInput.value = '';
+        });
+
+        nextQuestionButton.addEventListener('click', () => {
+            sendWsMessage({ type: 'nextQuestion' });
+        });
+
+        prevQuestionButton.addEventListener('click', () => {
+            sendWsMessage({ type: 'prevQuestion' });
+        });
+        
+        resetScoresButton.addEventListener('click', () => {
+            const confirmed = confirm('Möchten Sie wirklich die Punkte aller Spieler zurücksetzen?');
+            if (confirmed) {
+                sendWsMessage({ type: 'resetAllPlayerStats' });
+            }
+        });
+
+        function renderScores(scores, activePlayers) {
+            const scoreList = document.getElementById('score-list');
+            scoreList.innerHTML = '';
+
+            const sortedScores = Object.entries(scores).sort(([, scoreA], [, scoreB]) => scoreB - scoreA);
+
+            sortedScores.forEach(([name, score]) => {
+                const li = document.createElement('li');
+                li.textContent = `${name}: ${score}`;
+
+                if (activePlayers[name]) {
+                    li.style.color = '#03dac6';
+                }
+                scoreList.appendChild(li);
+            });
+        }
+        
+        function renderSubmittedAnswers(submittedAnswers) {
+            submittedAnswersContainer.style.display = 'block';
+            submittedAnswersList.innerHTML = '';
+            for (const name in submittedAnswers) {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <strong>${name}:</strong> ${submittedAnswers[name]} 
+                    <button class="correct-button" data-name="${name}">Korrigieren</button>
+                    <button class="incorrect-button" data-name="${name}">Falsch</button>
+                `;
+                submittedAnswersList.appendChild(li);
+            }
+        
+            document.querySelectorAll('.correct-button').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const name = event.target.getAttribute('data-name');
+                    sendWsMessage({ type: 'correctAnswer', name });
+                    submittedAnswersContainer.style.display = 'none';
+                });
+            });
+        
+            document.querySelectorAll('.incorrect-button').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const name = event.target.getAttribute('data-name');
+                    sendWsMessage({ type: 'wrongAnswer', name });
+                    submittedAnswersContainer.style.display = 'none';
+                });
+            });
+        }
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            
-            if (data.type === 'loginSuccess') {
-                if (data.isHost) {
-                    // Speichern Sie die Sitzungs-ID im localStorage, um die Host-Verbindung aufrechtzuerhalten
-                    localStorage.setItem('hostSessionId', data.sessionId);
-                    window.location.href = 'quizmaster.html';
-                } else {
-                    document.getElementById('login-form').style.display = 'none';
+
+            if (data.type === 'loginSuccess' || data.type === 'loginFailure') {
+                if (data.type === 'loginSuccess') {
+                    isHost = data.isHost;
+                    loginForm.style.display = 'none';
                     mainContent.style.display = 'flex';
-                }
-            }
-            
-            if (data.type === 'buzzerStatus') {
-                buzzerButton.disabled = data.status === 'closed';
-                if (data.status === 'closed') {
-                    statusMessage.textContent = 'Der Buzzer ist geschlossen.';
+                    if (isHost) {
+                        hostActions.style.display = 'block';
+                        answerForm.style.display = 'none';
+                        liveAnswersContainer.style.display = 'block';
+                        buzzerButton.style.display = 'none';
+                    } else {
+                        buzzerButton.style.display = 'block';
+                        answerForm.style.display = 'block';
+                    }
+                    statusMessage.textContent = 'Erfolgreich eingeloggt!';
                 } else {
-                    statusMessage.textContent = 'Der Buzzer ist geöffnet!';
+                    alert('Login fehlgeschlagen. Überprüfen Sie Ihren Namen und Ihr Passwort.');
                 }
             }
-            
-            if (data.type === 'buzzedIn') {
-                statusMessage.textContent = `${data.buzzedIn} hat zuerst gebuzzt!`;
-                buzzerButton.disabled = true;
-                answerSection.style.display = 'none';
-                if (data.buzzedIn === nameInput.value) {
-                   answerSection.style.display = 'block';
-                   answerInput.disabled = false;
-                   submitAnswerButton.disabled = false;
-                }
+
+            if (data.type === 'updateScores') {
+                renderScores(data.scores, data.activePlayers);
             }
-            
-            if (data.type === 'updateQuestion') {
+
+            if (data.type === 'questionUpdate' && isHost) {
                 questionText.textContent = data.question;
+            } else if (data.type === 'questionUpdate' && !isHost) {
+                questionText.textContent = data.question;
+                statusMessage.textContent = 'Frage ist da, der Buzzer ist bereit!';
+                buzzerButton.disabled = false;
+            }
+
+            if (data.type === 'buzzerStatus') {
+                if (data.status === 'open') {
+                    statusMessage.textContent = 'Buzzer ist offen!';
+                    buzzerButton.disabled = false;
+                    buzzerButton.style.display = 'block';
+                    if (isHost) {
+                        openBuzzerButton.style.display = 'none';
+                        resetButton.style.display = 'block';
+                    }
+                } else if (data.status === 'closed') {
+                    if (!isHost) {
+                        buzzerButton.disabled = true;
+                    }
+                    resetButton.style.display = 'block';
+                    openBuzzerButton.style.display = 'block';
+                    statusMessage.textContent = 'Buzzer ist geschlossen.';
+                }
+            }
+
+            if (data.type === 'buzzedIn') {
+                if (isHost) {
+                    statusMessage.textContent = `${data.name} hat zuerst gebuzzt!`;
+                    openBuzzerButton.style.display = 'none';
+                    resetButton.style.display = 'block';
+                } else {
+                    statusMessage.textContent = `${data.name} hat zuerst gebuzzt!`;
+                    buzzerButton.disabled = true;
+                    buzzerButton.style.display = 'none';
+                }
+                playSound(buzzSound);
+            }
+            
+            if (data.type === 'submittedAnswers' && isHost) {
+                renderSubmittedAnswers(data.submittedAnswers);
+            }
+
+            if (data.type === 'liveAnswers' && isHost) {
+                liveAnswersList.innerHTML = '';
+                for (const name in data.liveAnswers) {
+                    const li = document.createElement('li');
+                    li.textContent = `${name}: ${data.liveAnswers[name]}`;
+                    liveAnswersList.appendChild(li);
+                }
             }
             
             if (data.type === 'updateScores') {
@@ -127,74 +303,19 @@
             }
             
             if (data.type === 'correctAnswer') {
-                statusMessage.textContent = `${data.name} war korrekt!`;
+                if (!isHost) {
+                    statusMessage.textContent = `${data.name} war korrekt!`;
+                }
                 playSound(correctSound);
             }
             
             if (data.type === 'wrongAnswer') {
-                statusMessage.textContent = `${data.name} war falsch.`;
+                if (!isHost) {
+                    statusMessage.textContent = `${data.name} war falsch.`;
+                }
                 playSound(wrongSound);
             }
         };
-        
-        ws.onclose = () => {
-            console.log('Verbindung getrennt.');
-            setTimeout(() => {
-                const hostToken = localStorage.getItem('hostSessionId');
-                if (hostToken) {
-                    connectToServer(hostToken);
-                } else {
-                    connectToServer();
-                }
-            }, 5000); // 5 Sekunden warten und erneut versuchen
-        };
-    }
-    
-    function renderScores(scores, activePlayers) {
-        scoreList.innerHTML = '';
-        const sortedPlayers = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-        sortedPlayers.forEach(([name, score]) => {
-            const listItem = document.createElement('li');
-            listItem.textContent = `${name}: ${score} Punkte`;
-            if (activePlayers.includes(name)) {
-                listItem.classList.add('active-player');
-            }
-            scoreList.appendChild(listItem);
-        });
-    }
-
-    function playSound(sound) {
-        sound.pause();
-        sound.currentTime = 0;
-        sound.play();
-    }
-    
-    loginForm.addEventListener('submit', (event) => {
-        event.preventDefault();
-        const name = nameInput.value.trim();
-        const password = passwordInput.value.trim();
-        
-        if (name) {
-            ws.send(JSON.stringify({ type: 'login', name, password }));
-        }
-    });
-
-    buzzerButton.addEventListener('click', () => {
-        ws.send(JSON.stringify({ type: 'buzz' }));
-    });
-
-    submitAnswerButton.addEventListener('click', () => {
-        const answer = answerInput.value.trim();
-        if (answer) {
-            ws.send(JSON.stringify({ type: 'submitAnswer', answer }));
-            answerInput.value = '';
-        }
-    });
-    
-    // Versuchen Sie, die Host-Sitzung aus dem lokalen Speicher zu laden und eine Verbindung herzustellen
-    const hostToken = localStorage.getItem('hostSessionId');
-    connectToServer(hostToken);
-
-</script>
+    </script>
 </body>
 </html>

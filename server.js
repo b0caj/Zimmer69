@@ -4,7 +4,6 @@ const path = require('path');
 const { MongoClient } = require('mongodb');
 const { ObjectId } = require('mongodb');
 const fs = require('fs');
-const { v4: uuidv4 } = require('uuid');
 
 // Ihre MongoDB-Verbindungs-URL aus den Umgebungsvariablen
 const uri = process.env.MONGODB_URI;
@@ -22,6 +21,9 @@ let persistedPlayers = {};
 // Globale Variable für persistierte Spieler- und Hostdaten
 let persistedData = { users: [], host: {} };
 
+// Globale Variable für Host-Daten, geladen aus der Datenbank
+let hostUser = null;
+
 // WebSocket Server
 const wss = new WebSocket.Server({ noServer: true });
 
@@ -30,9 +32,6 @@ let buzzerStatus = 'closed'; // 'open' oder 'closed'
 let currentQuestionIndex = 0;
 let submittedAnswers = {};
 let liveAnswers = {};
-
-// Speichert die aktuelle Sitzungs-ID
-let sessionId = null;
 
 async function connectToDatabase() {
     try {
@@ -46,100 +45,220 @@ async function connectToDatabase() {
         // Daten aus der Datenbank beim Start laden
         await loadPersistedData();
         await loadQuestions();
+
     } catch (error) {
-        console.error("Fehler beim Verbinden mit der Datenbank:", error);
+        console.error("Fehler bei der Verbindung zur Datenbank:", error);
+        process.exit(1); // Den Prozess beenden, wenn die Verbindung fehlschlägt
     }
 }
 
 async function loadPersistedData() {
-    persistedData = await playersCollection.findOne({ _id: new ObjectId('60c72b2f9b1d8c001f8e4a7a') }) || { users: [], host: {} };
-    persistedPlayers = persistedData.users.reduce((acc, player) => {
-        acc[player.name] = player.stats;
-        return acc;
-    }, {});
-    if (persistedData.host && persistedData.host.sessionId) {
-        sessionId = persistedData.host.sessionId;
-    } else {
-        // Generiere eine neue Sitzungs-ID, wenn keine vorhanden ist
-        sessionId = uuidv4();
-        await updateHostSessionId();
+    try {
+        const data = await playersCollection.findOne({});
+        if (data) {
+            persistedData = data;
+            // Spielerdaten in ein leicht zugängliches Objekt umwandeln
+            persistedPlayers = persistedData.users.reduce((obj, user) => {
+                obj[user.name] = user;
+                return obj;
+            }, {});
+            
+            // Host-Daten aus dem separaten 'host'-Objekt der Datenbank laden
+            if (persistedData.host) {
+                hostUser = persistedData.host;
+            }
+
+            console.log("Persistierte Spielerdaten erfolgreich geladen.");
+        } else {
+            console.log("Keine persistierten Spielerdaten in der Datenbank gefunden.");
+        }
+    } catch (error) {
+        console.error("Fehler beim Laden der persistierten Daten:", error);
     }
-    console.log("Persistierte Spielerdaten und Host-Daten geladen.");
-}
-
-async function updateHostSessionId() {
-    const hostData = { ...persistedData.host, sessionId: sessionId };
-    await playersCollection.updateOne(
-        { _id: new ObjectId('60c72b2f9b1d8c001f8e4a7a') },
-        { $set: { host: hostData } },
-        { upsert: true }
-    );
-    persistedData.host = hostData;
-    console.log(`Neue Sitzungs-ID für den Host gespeichert: ${sessionId}`);
-}
-
-async function updatePlayer(name, updates) {
-    await playersCollection.updateOne(
-        { _id: new ObjectId('60c72b2f9b1d8c001f8e4a7a'), "users.name": name },
-        { $set: updates }
-    );
-}
-
-async function resetAllPlayerStats() {
-    persistedPlayers = {};
-    persistedData.users = [];
-    await playersCollection.updateOne(
-        { _id: new ObjectId('60c72b2f9b1d8c001f8e4a7a') },
-        { $set: { users: [] } }
-    );
-    console.log('Alle Spielerstatistiken wurden zurückgesetzt.');
 }
 
 async function loadQuestions() {
     try {
-        const questionsFromFile = JSON.parse(fs.readFileSync(path.join(__dirname, 'questions.json'), 'utf8'));
-        questions = questionsFromFile;
-        console.log('Fragen aus questions.json geladen.');
+        questions = await questionsCollection.find({}).toArray();
+        if (questions.length > 0) {
+            console.log(`${questions.length} Fragen erfolgreich geladen.`);
+        } else {
+            console.log("Keine Fragen in der Datenbank gefunden.");
+        }
     } catch (error) {
-        console.error('Fehler beim Laden der Fragen aus questions.json:', error);
+        console.error("Fehler beim Laden der Fragen:", error);
     }
 }
 
-// HTTP-Server erstellen
+async function updatePlayer(name, updates) {
+    try {
+        // Zuerst das Dokument in der Datenbank finden, das das Benutzerarray enthält
+        const userIndex = persistedData.users.findIndex(u => u.name === name);
+
+        if (userIndex !== -1) {
+            // Aktuelle Spielerdaten im Arbeitsspeicher aktualisieren
+            const currentUser = persistedData.users[userIndex];
+            const updatedUser = { ...currentUser, ...updates };
+            persistedData.users[userIndex] = updatedUser;
+
+            const playerDoc = await playersCollection.findOne({});
+
+            if (playerDoc) {
+                const updateQuery = {
+                    $set: {
+                        [`users.${userIndex}.totalScore`]: updatedUser.totalScore,
+                        [`users.${userIndex}.correctAnswers`]: updatedUser.correctAnswers,
+                        [`users.${userIndex}.incorrectAnswers`]: updatedUser.incorrectAnswers,
+                        [`users.${userIndex}.totalQuestionsAnswered`]: updatedUser.totalQuestionsAnswered,
+                    }
+                };
+
+                await playersCollection.updateOne({ _id: playerDoc._id }, updateQuery);
+            }
+        }
+    } catch (error) {
+        console.error("Fehler beim Aktualisieren des Spielers in der Datenbank:", error);
+    }
+}
+
+async function resetAllPlayerStats() {
+    try {
+        persistedData.users = persistedData.users.map(user => ({
+            ...user,
+            totalScore: 0,
+            correctAnswers: 0,
+            incorrectAnswers: 0,
+            totalQuestionsAnswered: 0
+        }));
+        
+        const playerDoc = await playersCollection.findOne({});
+
+        if (playerDoc) {
+            const updateQuery = {
+                $set: {
+                    users: persistedData.users
+                }
+            };
+            
+            await playersCollection.updateOne({ _id: playerDoc._id }, updateQuery);
+            console.log("Alle Spielerstatistiken in der Datenbank zurückgesetzt.");
+        }
+    } catch (error) {
+        console.error("Fehler beim Zurücksetzen der Spielerstatistiken:", error);
+    }
+}
+
+function resetBuzzer() {
+    buzzerStatus = 'open';
+    buzzedIn = null;
+    submittedAnswers = {};
+    liveAnswers = {};
+    broadcastStatus();
+}
+
+function broadcastStatus() {
+    const statusData = {
+        type: 'updateStatus',
+        buzzedIn: buzzedIn,
+        status: buzzerStatus
+    };
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(statusData));
+        }
+    });
+}
+
+function broadcastScores() {
+    let activePlayers = [];
+    let activeScores = {};
+
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN && client.userName) {
+            activePlayers.push(client.userName);
+            if (persistedPlayers[client.userName]) {
+                activeScores[client.userName] = persistedPlayers[client.userName].totalScore;
+            }
+        }
+    });
+
+    const sortedScores = Object.entries(activeScores)
+        .sort(([, a], [, b]) => b - a)
+        .reduce((acc, [key, value]) => {
+            acc[key] = value;
+            return acc;
+        }, {});
+
+    const scoreData = {
+        type: 'updateScores',
+        scores: sortedScores,
+        activePlayers: activePlayers
+    };
+
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(scoreData));
+        }
+    });
+}
+
+function broadcastStats() {
+    const statsData = {
+        type: 'updateStats',
+        stats: persistedPlayers
+    };
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN && client.isHost) {
+            client.send(JSON.stringify(statsData));
+        }
+    });
+}
+
+function broadcastQuestionUpdate() {
+    const questionData = {
+        type: 'updateQuestion',
+        question: questions[currentQuestionIndex].question
+    };
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(questionData));
+        }
+    });
+}
+
 const server = http.createServer((req, res) => {
-    let filePath;
-    if (req.url === '/') {
-        filePath = path.join(__dirname, 'index.html');
-    } else if (req.url === '/quizmaster') {
-        filePath = path.join(__dirname, 'quizmaster.html');
-    } else if (req.url === '/stats') {
-        filePath = path.join(__dirname, 'stats.html');
-    } else {
-        filePath = path.join(__dirname, req.url);
+    let filePath = '.' + req.url;
+    if (filePath === './') {
+        filePath = './index.html';
     }
 
-    const extname = path.extname(filePath);
-    let contentType = 'text/html';
-    switch (extname) {
-        case '.js':
-            contentType = 'text/javascript';
-            break;
-        case '.css':
-            contentType = 'text/css';
-            break;
-        case '.json':
-            contentType = 'application/json';
-            break;
-    }
+    const extname = String(path.extname(filePath)).toLowerCase();
+    const mimeTypes = {
+        '.html': 'text/html',
+        '.js': 'text/javascript',
+        '.css': 'text/css',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpg',
+        '.gif': 'image/gif',
+        '.wav': 'audio/wav',
+        '.mp3': 'audio/mpeg',
+        '.svg': 'image/svg+xml',
+    };
 
-    fs.readFile(filePath, (err, content) => {
-        if (err) {
-            if (err.code == 'ENOENT') {
-                res.writeHead(404);
-                res.end('404 Not Found');
+    const contentType = mimeTypes[extname] || 'application/octet-stream';
+
+    fs.readFile(filePath, (error, content) => {
+        if (error) {
+            if (error.code == 'ENOENT') {
+                fs.readFile('./404.html', (error, content) => {
+                    res.writeHead(404, { 'Content-Type': 'text/html' });
+                    res.end(content, 'utf-8');
+                });
             } else {
                 res.writeHead(500);
-                res.end('Server Error');
+                res.end('Sorry, check with the site admin for error: ' + error.code + ' ..\n');
+                res.end();
             }
         } else {
             res.writeHead(200, { 'Content-Type': contentType });
@@ -148,205 +267,137 @@ const server = http.createServer((req, res) => {
     });
 });
 
-// WebSocket-Upgrade-Handler
 server.on('upgrade', (request, socket, head) => {
     wss.handleUpgrade(request, socket, head, ws => {
         wss.emit('connection', ws, request);
     });
 });
 
-const broadcast = (message) => {
-    wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify(message));
-        }
-    });
-};
-
-const broadcastScores = () => {
-    const scores = {};
-    const activePlayers = [];
-    wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN && client.name && !client.isHost) {
-            scores[client.name] = persistedPlayers[client.name] ? persistedPlayers[client.name].totalScore : 0;
-            activePlayers.push(client.name);
-        }
-    });
-    broadcast({ type: 'updateScores', scores, activePlayers });
-};
-
-const broadcastStats = () => {
-    broadcast({ type: 'updateStats', stats: persistedPlayers });
-};
-
-const broadcastQuestionUpdate = () => {
-    if (questions.length > 0) {
-        broadcast({ type: 'updateQuestion', question: questions[currentQuestionIndex].question });
-    }
-};
-
-const resetBuzzer = () => {
-    buzzerStatus = 'open';
-    buzzedIn = null;
-    submittedAnswers = {};
-    liveAnswers = {};
-    broadcast({ type: 'reset' });
-};
-
-const sendBuzzerStatus = () => {
-    broadcast({ type: 'buzzerStatus', status: buzzerStatus, buzzedIn: buzzedIn });
-};
-
-const updatePoints = async (name, points) => {
-    const playerStats = persistedPlayers[name] || { totalScore: 0, correctAnswers: 0, incorrectAnswers: 0, totalQuestionsAnswered: 0 };
-    playerStats.totalScore += points;
-    if (points > 0) {
-        playerStats.correctAnswers++;
-    } else {
-        playerStats.incorrectAnswers++;
-    }
-    playerStats.totalQuestionsAnswered++;
-    persistedPlayers[name] = playerStats;
-
-    // Speichern der aktualisierten Daten in der Datenbank
-    const userIndex = persistedData.users.findIndex(user => user.name === name);
-    if (userIndex !== -1) {
-        persistedData.users[userIndex].stats = playerStats;
-        await playersCollection.updateOne(
-            { _id: new ObjectId('60c72b2f9b1d8c001f8e4a7a') },
-            { $set: { users: persistedData.users } }
-        );
-    } else {
-        persistedData.users.push({ name, stats: playerStats });
-        await playersCollection.updateOne(
-            { _id: new ObjectId('60c72b2f9b1d8c001f8e4a7a') },
-            { $set: { users: persistedData.users } },
-            { upsert: true }
-        );
-    }
-};
-
-wss.on('connection', async (ws, req) => {
+wss.on('connection', ws => {
     console.log('Client verbunden.');
 
-    // Host-Authentifizierung basierend auf der URL und der Sitzungs-ID
-    const urlParams = new URLSearchParams(req.url.slice(1));
-    const hostToken = urlParams.get('hostToken');
-    if (hostToken && persistedData.host && hostToken === persistedData.host.sessionId) {
-        ws.isHost = true;
-        console.log('Host-Client verbunden.');
-    } else {
-        ws.isHost = false;
-        console.log('Standard-Client verbunden.');
-    }
-
-    ws.on('message', async (message) => {
+    ws.on('message', async message => {
         const data = JSON.parse(message);
 
-        // Host-Login
-        if (data.type === 'login' && persistedData.host && data.name === persistedData.host.username && data.password === persistedData.host.password) {
-            sessionId = uuidv4();
-            await updateHostSessionId();
-            ws.isHost = true;
-            ws.name = data.name;
-            ws.send(JSON.stringify({ type: 'loginSuccess', isHost: true, sessionId }));
-            return;
-        }
+        if (data.type === 'auth') {
+            const isPlayer = persistedPlayers[data.name];
 
-        // Standard-Login
-        if (data.type === 'login' && data.name && !ws.isHost) {
-            ws.name = data.name;
-            ws.send(JSON.stringify({ type: 'loginSuccess', isHost: false }));
-            console.log(`Spieler "${data.name}" ist beigetreten.`);
-            broadcastScores();
-            broadcastStats();
-            broadcastQuestionUpdate();
-            return;
-        }
-
-        // Alle weiteren Befehle erfordern, dass der Client ein Host ist
-        if (!ws.isHost) {
-            console.warn('Nicht-Host-Client hat versucht, einen Host-Befehl auszuführen.');
-            return;
-        }
-
-        if (data.type === 'openBuzzer') {
-            resetBuzzer();
-            sendBuzzerStatus();
-            console.log('Buzzer wurde geöffnet.');
-        }
-
-        if (data.type === 'buzz') {
-            if (buzzerStatus === 'open' && !buzzedIn) {
-                buzzedIn = ws.name;
-                buzzerStatus = 'closed';
-                broadcast({ type: 'buzzedIn', buzzedIn: buzzedIn });
-                console.log(`Jemand hat gebuzzt! Name: ${buzzedIn}`);
+            // Host-Login
+            if (hostUser && data.name === hostUser.name && data.password === hostUser.password) {
+                console.log(`Host ${data.name} hat sich erfolgreich angemeldet.`);
+                ws.userName = data.name;
+                ws.isHost = true;
+                ws.send(JSON.stringify({ type: 'loginSuccess', isHost: true }));
+                broadcastScores();
+                broadcastStats();
+            }
+            // Spieler-Login
+            else if (isPlayer && isPlayer.password === data.password) {
+                console.log(`Spieler ${data.name} hat sich erfolgreich angemeldet.`);
+                ws.userName = data.name;
+                ws.isHost = false;
+                ws.send(JSON.stringify({ type: 'loginSuccess', isHost: false }));
+                broadcastScores();
+                broadcastStats();
+            }
+            // Anmelde-Fehler
+            else {
+                console.log('Anmeldeversuch fehlgeschlagen.');
+                ws.send(JSON.stringify({ type: 'loginFailure', message: 'Falscher Nutzername oder falsches Passwort.' }));
             }
         }
 
-        if (data.type === 'submitAnswer') {
-            if (buzzedIn && ws.name === buzzedIn) {
-                const correctAnswer = questions[currentQuestionIndex].answer;
-                const isCorrect = data.answer.toLowerCase() === correctAnswer.toLowerCase();
-                const points = isCorrect ? 10 : 0;
-                await updatePoints(ws.name, points);
+        if (data.type === 'buzz' && buzzerStatus === 'open' && !buzzedIn) {
+            buzzedIn = data.name;
+            buzzerStatus = 'closed';
+            broadcastStatus();
+            ws.send(JSON.stringify({ type: 'buzzerResponse', response: 'ok' }));
+            console.log(`${data.name} hat gebuzzt!`);
+        }
 
-                broadcast({ type: isCorrect ? 'correctAnswer' : 'wrongAnswer', name: ws.name });
-                console.log(`Antwort von ${ws.name}: ${data.answer} (Korrekte Antwort: ${correctAnswer}). Antwort ist ${isCorrect ? 'korrekt' : 'falsch'}.`);
-                resetBuzzer();
+        if (data.type === 'reset' && ws.isHost) {
+            resetBuzzer();
+        }
+
+        if (data.type === 'submitAnswer' && !ws.isHost) {
+            submittedAnswers[data.name] = data.answer;
+            liveAnswers[data.name] = data.answer;
+            // Sende die live Antworten nur an den Host
+            wss.clients.forEach(client => {
+                if (client.isHost) {
+                    client.send(JSON.stringify({ type: 'liveAnswers', liveAnswers: liveAnswers }));
+                }
+            });
+        }
+
+        if (data.type === 'updatePoints' && ws.isHost) {
+            if (buzzedIn) {
+                const pointsToAdd = parseInt(data.points, 10);
+                const player = persistedPlayers[buzzedIn];
+
+                if (player) {
+                    player.totalScore += pointsToAdd;
+                    player.totalQuestionsAnswered += 1;
+                    if (pointsToAdd > 0) {
+                        player.correctAnswers += 1;
+                        console.log(`${buzzedIn} hat ${pointsToAdd} Punkte erhalten. Aktuelle Punkte: ${player.totalScore}`);
+                        ws.send(JSON.stringify({ type: 'correctAnswer', name: buzzedIn }));
+                    } else {
+                        player.incorrectAnswers += 1;
+                        console.log(`${buzzedIn} hat ${pointsToAdd} Punkte verloren. Aktuelle Punkte: ${player.totalScore}`);
+                        ws.send(JSON.stringify({ type: 'wrongAnswer', name: buzzedIn }));
+                    }
+
+                    await updatePlayer(buzzedIn, {
+                        totalScore: player.totalScore,
+                        correctAnswers: player.correctAnswers,
+                        incorrectAnswers: player.incorrectAnswers,
+                        totalQuestionsAnswered: player.totalQuestionsAnswered
+                    });
+                    
+                    resetBuzzer();
+                    broadcastScores();
+                    broadcastStats();
+                }
             }
         }
-
-        if (data.type === 'updatePoints' && buzzedIn) {
-            const points = data.points;
-            await updatePoints(buzzedIn, points);
-            console.log(`Punktestand für ${buzzedIn} wurde um ${points} aktualisiert.`);
-            resetBuzzer();
-        }
-
-        if (data.type === 'reset') {
-            resetBuzzer();
-        }
-
-        if (data.type === 'nextQuestion') {
+        
+        if (data.type === 'nextQuestion' && ws.isHost) {
             currentQuestionIndex = (currentQuestionIndex + 1) % questions.length;
             resetBuzzer();
             broadcastQuestionUpdate();
             console.log('Nächste Frage geladen.');
         }
 
-        if (data.type === 'prevQuestion') {
+        if (data.type === 'prevQuestion' && ws.isHost) {
             currentQuestionIndex = (currentQuestionIndex - 1 + questions.length) % questions.length;
             resetBuzzer();
             broadcastQuestionUpdate();
             console.log('Vorherige Frage geladen.');
         }
 
-        if (data.type === 'resetAllPlayerStats') {
+        if (data.type === 'resetAllPlayerStats' && ws.isHost) {
             await resetAllPlayerStats();
             broadcastStats();
             broadcastScores();
         }
 
-        if (data.type === 'manualScoreChange') {
+        if (data.type === 'manualScoreChange' && ws.isHost) {
             const { name, newScore } = data;
             const playerUpdates = {
-                "users.$.stats.totalScore": newScore
+                totalScore: newScore
             };
-            await playersCollection.updateOne(
-                { "users.name": name },
-                { $set: playerUpdates }
-            );
-            persistedPlayers[name].totalScore = newScore;
+            
+            await updatePlayer(name, playerUpdates);
             console.log(`Punktestand für ${name} manuell auf ${newScore} aktualisiert.`);
             broadcastScores();
             broadcastStats();
         }
-
-        if (data.type === 'getStats') {
+        
+        if (data.type === 'getStats' && ws.isHost) {
             broadcastStats();
         }
+
     });
 
     ws.on('close', () => {
@@ -354,21 +405,23 @@ wss.on('connection', async (ws, req) => {
         broadcastScores();
         broadcastStats();
     });
-
+    
     // Sende den Initialstatus an den neu verbundenen Client
     ws.send(JSON.stringify({
         type: 'initialStatus',
         buzzedIn: buzzedIn,
         status: buzzerStatus
     }));
-
+    
     broadcastScores();
     broadcastStats();
     broadcastQuestionUpdate();
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Server läuft auf Port ${PORT}`);
-    connectToDatabase();
+
+connectToDatabase().then(() => {
+    server.listen(PORT, () => {
+        console.log(`Server läuft auf Port ${PORT}`);
+    });
 });

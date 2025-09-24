@@ -1,127 +1,81 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quizmaster Control</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="custom-form.css">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <h1>Quizmaster Control Panel</h1>
         
-        <div id="quiz-controls">
-            <p id="current-question"></p>
-            <div class="navigation-buttons">
-                <button id="prev-question-button">Vorherige Frage</button>
-                <button id="next-question-button">Nächste Frage</button>
-            </div>
-            <button id="reset-buzzer-button">Buzzer öffnen</button>
-            <p id="status-message">Buzzer ist geschlossen.</p>
-        </div>
-
-        <div id="player-buzz-info" style="display: none;">
-            <h2>Gebuzzt: <span id="buzzed-in-name"></span></h2>
-            <div id="score-controls" class="control-grid">
-                <button id="correct-button" data-points="10">Korrekt (+10)</button>
-                <button id="incorrect-button" data-points="-5">Falsch (-5)</button>
-            </div>
-            <button id="pass-button">Passen</button>
+        <div id="score-controls" style="display: none;">
+            <p>Buzzed in: <span id="buzzed-in-name"></span></p>
+            <button id="correct-button" data-points="10">Correct (+10)</button>
+            <button id="incorrect-button" data-points="-5">Incorrect (-5)</button>
+            <button id="pass-button">Pass</button>
         </div>
         
-        <a href="stats.html" class="button-link">
-            <button id="stats-button">Statistiken ansehen</button>
-        </a>
-        <button id="reset-stats-button">Alle Statistiken zurücksetzen</button>
-        
-        <h3>Antworten</h3>
-        <ul id="answers-list"></ul>
+        <button id="reset-button">Open Buzzer</button>
+        <p id="status-message">Waiting for the first buzz...</p>
     </div>
-    
+
     <script>
-        const resetBuzzerButton = document.getElementById('reset-buzzer-button');
-        const buzzedInName = document.getElementById('buzzed-in-name');
+        const ws = new WebSocket(`ws://${window.location.host}`);
+        const resetButton = document.getElementById('reset-button');
         const statusMessage = document.getElementById('status-message');
-        const playerBuzzInfo = document.getElementById('player-buzz-info');
+        const buzzedInName = document.getElementById('buzzed-in-name');
+        const scoreControls = document.getElementById('score-controls');
         const correctButton = document.getElementById('correct-button');
         const incorrectButton = document.getElementById('incorrect-button');
         const passButton = document.getElementById('pass-button');
-        const nextQuestionButton = document.getElementById('next-question-button');
-        const prevQuestionButton = document.getElementById('prev-question-button');
-        const currentQuestionText = document.getElementById('current-question');
-        const answersList = document.getElementById('answers-list');
-        const resetStatsButton = document.getElementById('reset-stats-button');
-
-        const ws = new WebSocket(`wss://${window.location.host}`);
-
-        // Prüfe auf den Sitzungsschlüssel, bevor eine Nachricht gesendet wird
-        ws.onopen = () => {
-            const hostSessionId = localStorage.getItem('hostSessionId');
-            if (hostSessionId) {
-                // Sende den Sitzungsschlüssel an den Server, um den Host-Status zu überprüfen
-                ws.send(JSON.stringify({
-                    type: 'hostSessionCheck',
-                    hostSessionId: hostSessionId
-                }));
-            } else {
-                // Wenn kein Schlüssel vorhanden ist, leite zurück zum Login
-                window.location.href = '/';
-            }
-        };
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            if (data.type === 'redirect' && data.location === '/') {
-                // Leite um, wenn die Sitzung ungültig ist
-                window.location.href = '/';
+            if (data.type === 'buzzedIn') {
+                statusMessage.textContent = `Buzzed: ${data.name}`;
+                buzzedInName.textContent = data.name;
+                resetButton.style.display = 'none';
+                scoreControls.style.display = 'block';
+            }
+
+            if (data.type === 'reset') {
+                statusMessage.textContent = 'Buzzer is open!';
+                resetButton.style.display = 'block';
+                scoreControls.style.display = 'none';
             }
             
-            if (data.type === 'updateStatus') {
+            if (data.type === 'initialStatus') {
                 if (data.status === 'open') {
-                    statusMessage.textContent = 'Buzzer ist offen.';
-                    playerBuzzInfo.style.display = 'none';
-                    answersList.innerHTML = '';
+                    statusMessage.textContent = 'Buzzer is open!';
+                    resetButton.style.display = 'block';
+                    scoreControls.style.display = 'none';
                 } else if (data.buzzedIn) {
-                    statusMessage.textContent = 'Ein Spieler hat gebuzzt!';
-                    playerBuzzInfo.style.display = 'block';
+                    statusMessage.textContent = `Buzzed: ${data.buzzedIn}`;
                     buzzedInName.textContent = data.buzzedIn;
+                    resetButton.style.display = 'none';
+                    scoreControls.style.display = 'block';
                 } else {
-                    statusMessage.textContent = 'Buzzer ist geschlossen.';
-                    playerBuzzInfo.style.display = 'none';
-                    answersList.innerHTML = '';
-                }
-            }
-            
-            if (data.type === 'updateQuestion') {
-                currentQuestionText.textContent = data.question;
-            }
-            
-            if (data.type === 'updateAnswers') {
-                answersList.innerHTML = '';
-                if (data.answers) {
-                    Object.keys(data.answers).forEach(name => {
-                        const li = document.createElement('li');
-                        li.textContent = `${name}: ${data.answers[name]}`;
-                        answersList.appendChild(li);
-                    });
+                    statusMessage.textContent = 'Buzzer is closed.';
+                    resetButton.style.display = 'block';
+                    scoreControls.style.display = 'none';
                 }
             }
         };
-        
+
         correctButton.addEventListener('click', () => {
             ws.send(JSON.stringify({
                 type: 'updatePoints',
-                points: parseInt(correctButton.dataset.points)
+                points: 5
             }));
         });
 
         incorrectButton.addEventListener('click', () => {
             ws.send(JSON.stringify({
                 type: 'updatePoints',
-                points: parseInt(incorrectButton.dataset.points)
+                points: +1
             }));
         });
         
@@ -131,30 +85,10 @@
             }));
         });
 
-        resetBuzzerButton.addEventListener('click', () => {
+        resetButton.addEventListener('click', () => {
             ws.send(JSON.stringify({
                 type: 'reset'
             }));
-        });
-        
-        nextQuestionButton.addEventListener('click', () => {
-            ws.send(JSON.stringify({
-                type: 'nextQuestion'
-            }));
-        });
-        
-        prevQuestionButton.addEventListener('click', () => {
-            ws.send(JSON.stringify({
-                type: 'prevQuestion'
-            }));
-        });
-        
-        resetStatsButton.addEventListener('click', () => {
-            if (confirm("Möchten Sie wirklich alle Spielerstatistiken zurücksetzen?")) {
-                ws.send(JSON.stringify({
-                    type: 'resetAllPlayerStats'
-                }));
-            }
         });
     </script>
 </body>
