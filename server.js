@@ -13,14 +13,8 @@ let questionsCollection;
 // Die Fragen werden in dieser Variable gespeichert
 let questions = [];
 
-// Globale Variable für persistierte Spielerdaten, geladen aus MongoDB
-let persistedPlayers = {};
-
-// Harte Kodierung des Hosts zur Demonstration - in einer echten Anwendung vermeiden
-const hostCredentials = {
-    name: 'Quizmaster',
-    password: 'hostpassword'
-};
+// Globale Variable für persistierte Spieler- und Hostdaten
+let persistedData = { users: [], host: {} };
 
 // WebSocket Server
 const wss = new WebSocket.Server({ noServer: true });
@@ -36,7 +30,7 @@ async function connectToDatabase() {
         await client.connect();
         console.log("Erfolgreich mit der MongoDB-Datenbank verbunden!");
 
-        const db = client.db(); // Wenn die URI einen Datenbanknamen hat, kann db() ohne Argument aufgerufen werden
+        const db = client.db();
         playersCollection = db.collection('players');
         questionsCollection = db.collection('questions');
 
@@ -52,12 +46,13 @@ async function connectToDatabase() {
 
 async function loadPersistedData() {
     try {
-        const users = await playersCollection.find({}).toArray();
-        persistedPlayers = users.reduce((acc, user) => {
-            acc[user.name] = user;
-            return acc;
-        }, {});
-        console.log("Spielerdaten aus der Datenbank geladen.");
+        const data = await playersCollection.findOne({});
+        if (data) {
+            persistedData = data;
+        } else {
+            console.error("Kein Dokument in der 'players'-Collection gefunden. Bitte importieren Sie 'buzzerraum.players.json' in Ihre Datenbank.");
+        }
+        console.log("Spieler- und Hostdaten aus der Datenbank geladen.");
     } catch (e) {
         console.error("Fehler beim Laden der Spielerdaten:", e);
     }
@@ -74,14 +69,17 @@ async function loadQuestions() {
 
 async function updatePlayer(name, updates) {
     try {
-        await playersCollection.updateOne(
-            { name: name },
-            { $set: updates },
-            { upsert: true }
-        );
-        // Aktualisieren des In-Memory-Objekts
-        const updatedPlayer = await playersCollection.findOne({ name: name });
-        persistedPlayers[name] = updatedPlayer;
+        const playerIndex = persistedData.users.findIndex(p => p.name === name);
+        if (playerIndex > -1) {
+            // Player-Daten in den lokalen Daten aktualisieren
+            persistedData.users[playerIndex] = { ...persistedData.users[playerIndex], ...updates };
+
+            // Das gesamte Dokument in der Datenbank aktualisieren
+            await playersCollection.updateOne(
+                { _id: persistedData._id },
+                { $set: { users: persistedData.users } }
+            );
+        }
     } catch (e) {
         console.error(`Fehler beim Aktualisieren des Spielers ${name}:`, e);
     }
@@ -89,13 +87,21 @@ async function updatePlayer(name, updates) {
 
 async function resetAllPlayerStats() {
     try {
-        await playersCollection.updateMany(
-            {},
-            { $set: { totalScore: 0, correctAnswers: 0, incorrectAnswers: 0, totalQuestionsAnswered: 0 } }
+        // Alle Spielerstatistiken in den lokalen Daten zurücksetzen
+        persistedData.users.forEach(player => {
+            player.totalScore = 0;
+            player.correctAnswers = 0;
+            player.incorrectAnswers = 0;
+            player.totalQuestionsAnswered = 0;
+        });
+
+        // Das gesamte Dokument in der Datenbank aktualisieren
+        await playersCollection.updateOne(
+            { _id: persistedData._id },
+            { $set: { users: persistedData.users } }
         );
+
         console.log('Alle Spielerstatistiken wurden zurückgesetzt.');
-        // In-Memory-Daten aktualisieren
-        await loadPersistedData();
     } catch (e) {
         console.error("Fehler beim Zurücksetzen der Statistiken:", e);
     }
@@ -112,8 +118,8 @@ function broadcast(message) {
 function broadcastScores() {
     const scores = {};
     const activePlayers = {};
-    for (const name in persistedPlayers) {
-        scores[name] = persistedPlayers[name].totalScore;
+    for (const user of persistedData.users) {
+        scores[user.name] = user.totalScore;
     }
 
     wss.clients.forEach(client => {
@@ -126,7 +132,11 @@ function broadcastScores() {
 }
 
 function broadcastStats() {
-    broadcast({ type: 'updateStats', stats: persistedPlayers });
+    const stats = persistedData.users.reduce((acc, user) => {
+        acc[user.name] = user;
+        return acc;
+    }, {});
+    broadcast({ type: 'updateStats', stats: stats });
 }
 
 function broadcastQuestionUpdate() {
@@ -170,12 +180,9 @@ const server = http.createServer(async (req, res) => {
             break;
     }
 
-    // In einer echten Anwendung würden Sie hier die Dateien von einem Speicherdienst
-    // wie Amazon S3 oder einem CDN servieren, oder die Dateien direkt in Render
-    // bereitstellen, was der Standardfall ist.
     try {
+        const fs = require('fs');
         const content = await new Promise((resolve, reject) => {
-            const fs = require('fs');
             fs.readFile(path.join(__dirname, filePath), (err, data) => {
                 if (err) reject(err);
                 resolve(data);
@@ -213,7 +220,7 @@ wss.on('connection', ws => {
             const { name, password } = data;
 
             // Quizmaster Login
-            if (name === hostCredentials.name && password === hostCredentials.password) {
+            if (persistedData.host.name === name && persistedData.host.password === password) {
                 ws.isHost = true;
                 ws.send(JSON.stringify({ type: 'authResponse', success: true, isHost: true }));
                 console.log('Quizmaster hat sich angemeldet.');
@@ -223,17 +230,8 @@ wss.on('connection', ws => {
             }
 
             // Spieler Login
-            let userFound = false;
-            let player;
-            for (const pName in persistedPlayers) {
-                if (pName === name && persistedPlayers[pName].password === password) {
-                    userFound = true;
-                    player = persistedPlayers[pName];
-                    break;
-                }
-            }
-
-            if (userFound) {
+            const player = persistedData.users.find(u => u.name === name && u.password === password);
+            if (player) {
                 ws.isPlayer = true;
                 ws.name = name;
                 ws.send(JSON.stringify({ type: 'authResponse', success: true, isHost: false }));
@@ -288,10 +286,11 @@ wss.on('connection', ws => {
 
         if (data.type === 'correctAnswer' && ws.isHost) {
             const { name } = data;
-            const player = persistedPlayers[name];
+            const player = persistedData.users.find(p => p.name === name);
             if (player) {
                 player.totalScore = (player.totalScore || 0) + 10;
                 player.correctAnswers = (player.correctAnswers || 0) + 1;
+                player.totalQuestionsAnswered = (player.totalQuestionsAnswered || 0) + 1;
                 await updatePlayer(name, player);
                 broadcast({ type: 'correctAnswer', name });
                 broadcastScores();
@@ -302,10 +301,11 @@ wss.on('connection', ws => {
 
         if (data.type === 'wrongAnswer' && ws.isHost) {
             const { name } = data;
-            const player = persistedPlayers[name];
+            const player = persistedData.users.find(p => p.name === name);
             if (player) {
                 player.totalScore = (player.totalScore || 0) - 5;
                 player.incorrectAnswers = (player.incorrectAnswers || 0) + 1;
+                player.totalQuestionsAnswered = (player.totalQuestionsAnswered || 0) + 1;
                 await updatePlayer(name, player);
                 broadcast({ type: 'wrongAnswer', name });
                 broadcastScores();
@@ -334,10 +334,9 @@ wss.on('connection', ws => {
             broadcastScores();
         }
 
-        if (data.type === 'getStats' && ws.isHost) {
+        if (data.type === 'getStats') {
             broadcastStats();
         }
-
     });
 
     ws.on('close', () => {
