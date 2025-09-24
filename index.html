@@ -125,7 +125,7 @@
             const name = nameInput.value;
             const password = passwordInput.value;
 
-            sendWsMessage({ type: 'auth', name, password });
+            sendWsMessage({ type: 'login', name, password });
         });
 
         function sendWsMessage(message) {
