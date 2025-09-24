@@ -121,6 +121,42 @@ async function updatePlayer(name, updates) {
     }
 }
 
+async function updatePlayers(names, updates) {
+    try {
+        const playerDoc = await playersCollection.findOne({});
+        if (!playerDoc) return;
+
+        const updateOperations = names.map(name => {
+            const userIndex = persistedData.users.findIndex(u => u.name === name);
+            if (userIndex !== -1) {
+                const currentUser = persistedData.users[userIndex];
+                const updatedUser = { ...currentUser, ...updates };
+                persistedData.users[userIndex] = updatedUser;
+
+                return {
+                    updateOne: {
+                        filter: { _id: playerDoc._id },
+                        update: {
+                            $inc: {
+                                [`users.${userIndex}.totalScore`]: updates.totalScore,
+                            }
+                        }
+                    }
+                };
+            }
+            return null;
+        }).filter(op => op !== null);
+
+        if (updateOperations.length > 0) {
+            await playersCollection.bulkWrite(updateOperations);
+        }
+
+    } catch (error) {
+        console.error("Fehler beim Aktualisieren mehrerer Spieler:", error);
+    }
+}
+
+
 async function resetAllPlayerStats() {
     try {
         persistedData.users = persistedData.users.map(user => ({
@@ -329,37 +365,70 @@ wss.on('connection', ws => {
                 }
             });
         }
+        
+        // NEUE LOGIK FÜR KORREKTEN BUZZER
+        if (data.type === 'correctBuzzer' && ws.isHost && buzzedIn) {
+            console.log(`${buzzedIn} war korrekt.`);
+            
+            // Finde den Spieler, der gebuzzt hat, und erhöhe seine Punkte um 5
+            await playersCollection.updateOne(
+                { name: buzzedIn },
+                { $inc: { totalScore: 5, correctAnswers: 1, totalQuestionsAnswered: 1 } }
+            );
 
-        if (data.type === 'updatePoints' && ws.isHost) {
-            if (buzzedIn) {
-                const pointsToAdd = parseInt(data.points, 10);
-                const player = persistedPlayers[buzzedIn];
-
-                if (player) {
-                    player.totalScore += pointsToAdd;
-                    player.totalQuestionsAnswered += 1;
-                    if (pointsToAdd > 0) {
-                        player.correctAnswers += 1;
-                        console.log(`${buzzedIn} hat ${pointsToAdd} Punkte erhalten. Aktuelle Punkte: ${player.totalScore}`);
-                        ws.send(JSON.stringify({ type: 'correctAnswer', name: buzzedIn }));
-                    } else {
-                        player.incorrectAnswers += 1;
-                        console.log(`${buzzedIn} hat ${pointsToAdd} Punkte verloren. Aktuelle Punkte: ${player.totalScore}`);
-                        ws.send(JSON.stringify({ type: 'wrongAnswer', name: buzzedIn }));
-                    }
-
-                    await updatePlayer(buzzedIn, {
-                        totalScore: player.totalScore,
-                        correctAnswers: player.correctAnswers,
-                        incorrectAnswers: player.incorrectAnswers,
-                        totalQuestionsAnswered: player.totalQuestionsAnswered
-                    });
-                    
-                    resetBuzzer();
-                    broadcastScores();
-                    broadcastStats();
-                }
+            // Aktualisiere den Arbeitsspeicher
+            const player = persistedPlayers[buzzedIn];
+            if (player) {
+                player.totalScore += 5;
+                player.correctAnswers += 1;
+                player.totalQuestionsAnswered += 1;
             }
+
+            // Setze den Buzzer zurück und sende die aktualisierten Scores
+            resetBuzzer();
+            broadcastScores();
+            broadcastStats();
+        }
+
+        // NEUE LOGIK FÜR INKORREKTEN BUZZER
+        if (data.type === 'incorrectBuzzer' && ws.isHost && buzzedIn) {
+            console.log(`${buzzedIn} war falsch.`);
+
+            // Finde alle Spieler außer dem, der gebuzzt hat
+            const otherPlayers = await playersCollection.find({ name: { $ne: buzzedIn } }).toArray();
+
+            // Erhöhe die Punkte jedes anderen Spielers um 1
+            if (otherPlayers.length > 0) {
+                const otherPlayerNames = otherPlayers.map(p => p.name);
+                await playersCollection.updateMany(
+                    { name: { $in: otherPlayerNames } },
+                    { $inc: { totalScore: 1 } }
+                );
+                // Aktualisiere den Arbeitsspeicher
+                otherPlayerNames.forEach(name => {
+                    if (persistedPlayers[name]) {
+                        persistedPlayers[name].totalScore += 1;
+                    }
+                });
+            }
+
+            // Inkrementiere die Zähler für den fälschlicherweise buzzenden Spieler
+            await playersCollection.updateOne(
+                { name: buzzedIn },
+                { $inc: { incorrectAnswers: 1, totalQuestionsAnswered: 1 } }
+            );
+
+            // Aktualisiere den Arbeitsspeicher
+            const player = persistedPlayers[buzzedIn];
+            if (player) {
+                player.incorrectAnswers += 1;
+                player.totalQuestionsAnswered += 1;
+            }
+
+            // Setze den Buzzer zurück und sende die aktualisierten Scores
+            resetBuzzer();
+            broadcastScores();
+            broadcastStats();
         }
         
         if (data.type === 'nextQuestion' && ws.isHost) {
@@ -384,11 +453,21 @@ wss.on('connection', ws => {
 
         if (data.type === 'manualScoreChange' && ws.isHost) {
             const { name, newScore } = data;
-            const playerUpdates = {
-                totalScore: newScore
-            };
             
-            await updatePlayer(name, playerUpdates);
+            // Finde den Index des Spielers
+            const userIndex = persistedData.users.findIndex(u => u.name === name);
+
+            if (userIndex !== -1) {
+                // Datenbank aktualisieren
+                await playersCollection.updateOne(
+                    { [`users.name`]: name }, // Filter nach dem Spielernamen im Array
+                    { $set: { [`users.${userIndex}.totalScore`]: newScore } } // Update den spezifischen Spieler
+                );
+                
+                // Arbeitsspeicher aktualisieren
+                persistedPlayers[name].totalScore = newScore;
+            }
+
             console.log(`Punktestand für ${name} manuell auf ${newScore} aktualisiert.`);
             broadcastScores();
             broadcastStats();
