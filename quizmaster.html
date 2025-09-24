@@ -30,30 +30,22 @@
         const correctButton = document.getElementById('correct-button');
         const incorrectButton = document.getElementById('incorrect-button');
         const passButton = document.getElementById('pass-button');
+        
+        ws.onopen = () => {
+            console.log("WebSocket connection established with Quizmaster client.");
+        };
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
 
-            if (data.type === 'buzzedIn') {
-                statusMessage.textContent = `Buzzed: ${data.name}`;
-                buzzedInName.textContent = data.name;
-                resetButton.style.display = 'none';
-                scoreControls.style.display = 'block';
-            }
-
-            if (data.type === 'reset') {
-                statusMessage.textContent = 'Buzzer is open!';
-                resetButton.style.display = 'block';
-                scoreControls.style.display = 'none';
-            }
-            
-            if (data.type === 'initialStatus') {
+            if (data.type === 'updateStatus') {
                 if (data.status === 'open') {
                     statusMessage.textContent = 'Buzzer is open!';
+                    buzzedInName.textContent = '';
                     resetButton.style.display = 'block';
                     scoreControls.style.display = 'none';
                 } else if (data.buzzedIn) {
-                    statusMessage.textContent = `Buzzed: ${data.buzzedIn}`;
+                    statusMessage.textContent = `${data.buzzedIn} hat zuerst gebuzzt!`;
                     buzzedInName.textContent = data.buzzedIn;
                     resetButton.style.display = 'none';
                     scoreControls.style.display = 'block';
@@ -68,14 +60,14 @@
         correctButton.addEventListener('click', () => {
             ws.send(JSON.stringify({
                 type: 'updatePoints',
-                points: 5
+                points: 10
             }));
         });
 
         incorrectButton.addEventListener('click', () => {
             ws.send(JSON.stringify({
                 type: 'updatePoints',
-                points: +1
+                points: -5
             }));
         });
         
